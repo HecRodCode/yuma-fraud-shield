@@ -4,7 +4,7 @@ datasources:
     uid: shield-pg
     type: grafana-postgresql-datasource
     access: proxy
-    url: postgres:5432
+    url: ${POSTGRES_HOST}:${POSTGRES_PORT}
     user: grafana_ro
     secureJsonData:
       password: grafana_ro

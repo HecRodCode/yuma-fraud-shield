@@ -45,27 +45,28 @@ config/      Rules and thresholds templates
 
 ## Running the environment
 
-**Requirements:** Docker with Compose v2 and `make`.
+**Requirements:** Docker with Compose v2, `make`, `psql`, and a **local PostgreSQL** (not managed by compose) with a user allowed to create databases and roles.
 
 ```bash
-make up        # creates .env and config/*.yaml from templates and starts the infrastructure
-make ps        # service status
+cp .env.example .env     # set POSTGRES_HOST/PORT/USER/PASSWORD/DB for your local PostgreSQL
+make db                  # creates the database if missing and (re)applies the schema
+make up                  # starts Kafka, Kafka UI and Grafana
+make seed                # generates a labeled synthetic history into PostgreSQL
 ```
+
+`make db` is repeatable: it drops and recreates only the project tables.
+
+Grafana and the simulator run with `network_mode: host` so they reach a PostgreSQL that listens only on `127.0.0.1`; `POSTGRES_HOST` must therefore be reachable from the host (default `localhost`).
 
 | Service | URL / port | Credentials |
 |---------|------------|-------------|
 | Grafana | http://localhost:3000 | `admin` / `GRAFANA_ADMIN_PASSWORD` from `.env` |
 | Kafka UI | http://localhost:8080 | — |
-| PostgreSQL | `localhost:5432` | `.env` |
 | Kafka (external) | `localhost:29092` | — |
 
-Host ports can be changed in `.env` (`POSTGRES_PORT`, `GRAFANA_PORT`, `KAFKA_UI_PORT`).
+`make seed` accepts simulator options, e.g. `docker compose run --rm simulator history --accounts 10000 --days 90 --fraud-rate 0.005 --seed 7 --reset`.
 
-`make seed` generates a labeled synthetic history (accounts, session events, transactions and the four fraud types) into PostgreSQL. Options are passed to the simulator CLI, e.g. `docker compose run --rm simulator history --accounts 10000 --days 90 --fraud-rate 0.005 --seed 7 --reset`.
-
-Other commands: `make psql` (SQL shell), `make topics` (list topics), `make logs`, `make down`, `make reset` (removes volumes and re-applies the schema).
-
-The schema in [infra/postgres/init/01_schema.sql](infra/postgres/init/01_schema.sql) is applied on the first start of the volume. The `session-events` and `decisions` topics are created automatically.
+Other commands: `make psql` (SQL shell on the project database), `make topics`, `make logs`, `make ps`, `make down`. The `session-events` and `decisions` topics are created automatically.
 
 ## Configuration and confidentiality
 

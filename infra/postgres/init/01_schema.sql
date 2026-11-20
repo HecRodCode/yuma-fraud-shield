@@ -1,3 +1,8 @@
+DROP TABLE IF EXISTS
+  labels, alerts, baseline_decisions, decisions, transactions, session_events, accounts, audit_log
+  CASCADE;
+DROP FUNCTION IF EXISTS audit_log_immutable() CASCADE;
+
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE accounts (
@@ -100,6 +105,14 @@ CREATE TRIGGER trg_audit_log_immutable
   BEFORE UPDATE OR DELETE ON audit_log
   FOR EACH ROW EXECUTE FUNCTION audit_log_immutable();
 
-CREATE ROLE grafana_ro LOGIN PASSWORD 'grafana_ro';
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    CREATE ROLE grafana_ro LOGIN PASSWORD 'grafana_ro';
+  END IF;
+END
+$$;
+
+GRANT USAGE ON SCHEMA public TO grafana_ro;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO grafana_ro;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO grafana_ro;
