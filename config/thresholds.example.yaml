@@ -1,4 +1,3 @@
-# Copiar a config/thresholds.yaml (ignorado por git). Valores NO reales.
 score:
-  low_max: 0.00     # score < low_max  -> APROBAR
-  high_min: 0.00    # score >= high_min -> RETENER; entre ambos -> FRICCIÓN
+  low_max: 0.00
+  high_min: 0.00

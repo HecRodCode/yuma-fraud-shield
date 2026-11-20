@@ -1,0 +1,15 @@
+apiVersion: 1
+datasources:
+  - name: Shield Postgres
+    uid: shield-pg
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres:5432
+    user: grafana_ro
+    secureJsonData:
+      password: grafana_ro
+    jsonData:
+      database: ${POSTGRES_DB}
+      sslmode: disable
+      postgresVersion: 1600
+    isDefault: true

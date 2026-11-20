@@ -1,7 +1,6 @@
-# Copiar a config/rules.yaml (ignorado por git). Reglas duras de ejemplo, sin valores reales.
 hard_rules:
   - id: restricted_list
-    description: Cuenta destino en lista restrictiva
+    description: Target account is on a restricted list
   - id: amount_cap
-    description: Monto sobre el tope por canal
+    description: Amount exceeds the channel cap
     cap: 0

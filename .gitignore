@@ -1,15 +1,15 @@
-# Secretos y umbrales: el caso prohíbe publicar reglas y umbrales
+# Secrets and thresholds must not be published
 .env
 config/rules.yaml
 config/thresholds.yaml
 config/*.local.*
 
-# Datos
+# Data stays inside the hackathon environment
 data/raw/*
 data/synthetic/*
 !data/**/.gitkeep
 
-# Modelos entrenados
+# Trained models
 ml/artifacts/*
 !ml/artifacts/.gitkeep
 
@@ -19,10 +19,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 
-# Varios
+# Misc
 .DS_Store
 .idea/
 .vscode/
-
-# Documentación
-docs/
