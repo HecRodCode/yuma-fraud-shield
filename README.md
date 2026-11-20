@@ -61,6 +61,8 @@ make ps        # service status
 
 Host ports can be changed in `.env` (`POSTGRES_PORT`, `GRAFANA_PORT`, `KAFKA_UI_PORT`).
 
+`make seed` generates a labeled synthetic history (accounts, session events, transactions and the four fraud types) into PostgreSQL. Options are passed to the simulator CLI, e.g. `docker compose run --rm simulator history --accounts 10000 --days 90 --fraud-rate 0.005 --seed 7 --reset`.
+
 Other commands: `make psql` (SQL shell), `make topics` (list topics), `make logs`, `make down`, `make reset` (removes volumes and re-applies the schema).
 
 The schema in [infra/postgres/init/01_schema.sql](infra/postgres/init/01_schema.sql) is applied on the first start of the volume. The `session-events` and `decisions` topics are created automatically.

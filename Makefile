@@ -1,4 +1,4 @@
-.PHONY: setup up down reset logs ps psql topics
+.PHONY: setup up down reset logs ps seed psql topics
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -20,6 +20,9 @@ logs:
 
 ps:
 	docker compose ps
+
+seed:
+	docker compose run --rm --build simulator history --reset
 
 psql:
 	docker compose exec postgres sh -c 'psql -U $$POSTGRES_USER -d $$POSTGRES_DB'

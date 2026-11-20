@@ -24,6 +24,7 @@ CREATE TABLE transactions (
   target_account TEXT NOT NULL REFERENCES accounts(id),
   amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
   channel TEXT NOT NULL,
+  device TEXT,
   created_at TIMESTAMPTZ NOT NULL,
   -- ground truth, only available because the data is synthetic
   is_fraud BOOLEAN NOT NULL DEFAULT FALSE,
