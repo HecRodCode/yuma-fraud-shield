@@ -5,6 +5,9 @@ config/baseline_rules.yaml
 config/thresholds.yaml
 config/*.local.*
 
+# Case package: confidential data, current rules and organizer material
+docs/Caso_de_estudio_Yuma_Pay/
+
 # Data stays inside the hackathon environment
 data/raw/*
 data/synthetic/*

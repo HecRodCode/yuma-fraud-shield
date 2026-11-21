@@ -27,7 +27,7 @@ class Scorer:
     self.features: list[str] = []
     self.version = ""
     self.rules = Rules()
-    self.thresholds = Thresholds(0.3, 0.8)
+    self.thresholds = Thresholds(0.3, 0.8, 0.95)
     self._stamp: tuple = ()
     self._checked = 0.0
     self.refresh(force=True)

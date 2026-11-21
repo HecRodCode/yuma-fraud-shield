@@ -1,15 +1,14 @@
 batch_minutes: 15
-amount_caps:
-  transfer: 0
-  qr: 0
-  bill_payment: 0
-  topup: 0
-  withdrawal: 0
-night:
-  start_hour: 0
-  end_hour: 0
-  cap: 0
-daily_cap: 0
-restricted_list:
-  enabled: false
-  delay_hours: 0
+rules:
+  R001: {severity: medium, min_amount: 0}
+  R002: {severity: high, min_amount: 0}
+  R003: {severity: medium, max_hour: 0, min_amount: 0}
+  R004: {severity: medium, min_outflows_60m: 0}
+  R005: {severity: high, min_balance_ratio: 0, min_amount: 0}
+  R006: {severity: high, min_amount: 0}
+  R007: {severity: high, min_amount: 0}
+  R008: {severity: medium, max_account_age_days: 0, min_amount: 0}
+  R009: {severity: low, min_amount: 0}
+  R010: {severity: medium, min_daily_total: 0}
+  R011: {severity: low, min_amount: 0}
+  R012: {severity: medium, min_amount: 0}

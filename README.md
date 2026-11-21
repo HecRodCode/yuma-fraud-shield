@@ -2,144 +2,109 @@
 
 Real-time fraud prevention system for **Yuma Pay**, a fictional digital wallet. Prototype for the **EstudIA hackathon – Cybersecurity (Layer 2, intermediate level)**.
 
-> Simulated case: all figures and conditions belong to a fictional scenario and all data is synthetic.
+> Simulated case: all figures, conditions and data belong to a fictional scenario.
 
 ## Context
 
-Yuma Pay detects fraud after the money has already left the account. Its current engine runs ~140 static rules over part of the operations in 15-minute batches, raises ~4,000 alerts per day of which 92 % are false positives, and analysts can only review a third of them. Decisions are not explained, and feedback from confirmed cases never flows back into the rules.
+Yuma Pay detects fraud after the money has already left the account. Its current engine applies static rules to part of the operations in 15-minute batches, raises thousands of alerts per day of which ~90 % are false positives, and analysts can only review a third of them. Decisions are not explained, and feedback from confirmed cases never flows back into the rules.
 
-**Goal:** score the risk of every operation **before authorizing it** (< 300 ms, peaks of 150 TPS) by combining rules, machine learning, and behavior and device analysis; explain each decision and cut false positives without letting more fraud through.
+**Goal:** score the risk of every operation **before authorizing it** (< 300 ms, peaks of 150 TPS) by combining rules, machine learning and behavior and device analysis; explain each decision and cut false positives without letting more fraud through. The decision is one of `approve`, `challenge`, `hold` or `reject`.
 
 Supporting documentation:
 
 - [docs/yuma.pdf](docs/yuma.pdf) — original challenge statement.
-- [docs/CONTEXT.md](docs/CONTEXT.md) — scope, architecture, decision logic, fraud types, data model and demo script (Spanish).
+- [docs/CONTEXT.md](docs/CONTEXT.md) — initial scope and architecture notes (Spanish, partly superseded by this README).
+- The **case package** (data, current rules, sandbox API, diagrams) is expected in `docs/Caso_de_estudio_Yuma_Pay/`. It is confidential and git-ignored.
 
 ## How it works
 
 ```
-Simulator ──REST──▶ Scoring API ──▶ rules ▶ features ▶ XGBoost ▶ SHAP ──▶ approve | challenge | hold
-    │                   │
-    └── events ──▶ Kafka ◀── decisions          PostgreSQL ──▶ Grafana (KPIs) · Analyst console
+Sandbox / client ──▶ Scoring API ──▶ hard rules ▶ history features (PostgreSQL) ▶ XGBoost ▶ SHAP
+                         │                                   │
+                         ▼                                   ▼
+                       Kafka ──▶ persister ──▶ PostgreSQL ◀── baseline (current engine, 15-min batches)
+                                                   │
+                                          Grafana · analyst portal
 ```
 
-- Scoring is a **synchronous** call (`POST /score`); Kafka carries session/device events and decouples decision persistence.
-- There is never an automatic permanent block: an analyst decides.
-- A simulated "current" engine acts as the comparison baseline.
+1. A transaction arrives at `POST /score`.
+2. Hard rules (restricted destinations, amount caps per operation) are checked first.
+3. The SQL function `compute_features` reads the customer's history (operations, session events, devices, money received) strictly **before** the operation, so no future information is used.
+4. XGBoost returns a score; SHAP gives each feature's contribution; the top ones become plain-language reasons.
+5. Thresholds turn the score into `approve`, `challenge`, `hold` or `reject`.
+6. The decision, the 21+ feature values, the rules evaluated and the timings are published to Kafka; the persister stores them with an audit trail (API time, Kafka partition/offset, lag).
+7. The **baseline** service applies the 12 official legacy rules to the same transactions, in 15-minute batches.
+
+Training and serving use the same SQL function and the same Python feature code, so they cannot drift apart. Training is time-based: May–August to train, September to calibrate thresholds, October as the final test.
 
 ## Stack
 
-Kafka (KRaft) · Kafka UI · PostgreSQL · Python + FastAPI · XGBoost + scikit-learn · SHAP · PaySim + custom generator · Streamlit · Grafana · k6 · Docker Compose.
-
-## Layout
-
-```
-docs/        Challenge and scope
-infra/       Postgres (schema), Kafka (topics), Grafana (provisioning)
-services/    api, simulator, baseline, analyst_console
-ml/          Training and retraining
-data/        Local data (not versioned)
-loadtest/    k6 load tests
-config/      Rules and thresholds templates
-```
+Kafka (KRaft) · Kafka UI · PostgreSQL · Python + FastAPI · XGBoost + scikit-learn · SHAP · Grafana · Docker Compose.
 
 ## Code organization
 
 ```
 services/api/app/            Scoring API (FastAPI)
-  main.py                    app factory and lifespan
-  api/routes/                HTTP endpoints (health, scoring) and dependencies
+  api/routes/                HTTP endpoints (health, scoring, admin)
   schemas/                   request/response models
-  services/                  scoring use case (rules, features, model, publish)
+  services/                  scoring use case
   domain/                    rules, thresholds, model wrapper, reason templates
   infra/                     PostgreSQL pool, Kafka publisher, repositories
-  workers/persister.py       Kafka consumer that stores decisions and session events
-  core/settings.py           environment and paths
-
-services/simulator/simulator/
-  cli.py                     command line entry point (history, live, attack)
-  commands/                  one module per command
-  generators/                population, legitimate traffic, history
-  generators/fraud/          one module per fraud type (+ shared context)
-  sinks/                     PostgreSQL, Kafka and scoring API clients
-  domain/models.py           accounts, session events, transactions
-  settings.py                environment
-
-services/baseline/baseline/  simulated current engine: static rules evaluated in 15-minute batches
-services/simulator/simulator/control/  HTTP service that launches simulator jobs
-ml/shield_ml/                feature definitions (shared with the API) and training
-infra/postgres/init/         schema, compute_features SQL function and comparison view
-infra/grafana/dashboards/    provisioned Grafana dashboard
+  workers/                   persister (Kafka consumer) and replay (bulk scoring)
+services/baseline/           the legacy engine: 12 static rules in 15-minute batches
+services/sandbox/runner/     connector to the case sandbox: fetch, score, report decisions
+services/simulator/          attack and traffic simulator (being migrated to the case schema)
+ml/shield_ml/                feature definitions, case data loader, training, fairness audit
+infra/postgres/init/         schema, compute_features SQL function, comparison view
+infra/grafana/               provisioned datasource and dashboard
+config/                      templates for rules, thresholds and baseline parameters
 ```
 
 ## Running the environment
 
-**Requirements:** Docker with Compose v2, `make`, `psql`, and a **local PostgreSQL** (not managed by compose) with a user allowed to create databases and roles.
+**Requirements:** Docker with Compose v2, `make`, `psql`, a **local PostgreSQL** with a user allowed to create databases and roles, and the case package in `docs/Caso_de_estudio_Yuma_Pay/`.
 
 ```bash
 cp .env.example .env     # set POSTGRES_HOST/PORT/USER/PASSWORD/DB for your local PostgreSQL
 make db                  # creates the database if missing and (re)applies the schema
-make seed                # generates a labeled synthetic history into PostgreSQL
-make train               # trains the model and writes artifacts and config/thresholds.yaml
-make up                  # starts Kafka, Kafka UI, Grafana, the API, the persister and the baseline
-make evaluate            # scores the held-out transactions so both engines can be compared
+make load                # loads the case data (customers, events, transactions, legacy rules/alerts)
+make up                  # Kafka, Kafka UI, Grafana, API, persister and baseline
+make train               # trains the model, writes artifacts and config/thresholds.yaml
+make sandbox             # starts the case sandbox API
+make sandbox-run ARGS="--reset"   # decides the test period through the sandbox and prints its indicators
 ```
 
-The API starts without a model and answers 503 on `/score` until `make train` has run; it picks up new models and config files automatically.
+The API starts without a model and answers 503 on `/score` until `make train` has run; it picks up new models and config files automatically. The baseline needs a few minutes to evaluate the whole history after `make up`.
 
-`make db` is repeatable: it drops and recreates only the project tables.
+| Service | URL | Notes |
+|---------|-----|-------|
+| Scoring API docs (Swagger) | http://localhost:8000/docs | `POST /score`, `GET /health`, `POST /admin/replay` |
+| Dashboard | http://localhost:3000/d/yuma-shield | Grafana login from `.env` |
+| Kafka UI | http://localhost:8080 | topics `decisions`, `session-events` |
+| Case sandbox | http://localhost:8090/v1/metricas | official indicators |
 
-Grafana and the simulator run with `network_mode: host` so they reach a PostgreSQL that listens only on `127.0.0.1`; `POSTGRES_HOST` must therefore be reachable from the host (default `localhost`).
+Host ports can be changed in `.env`. Grafana and the workers run with `network_mode: host` so they can reach a PostgreSQL that listens only on `127.0.0.1`.
 
-| Service | URL / port | Credentials |
-|---------|------------|-------------|
-| Grafana | http://localhost:3000 | `admin` / `GRAFANA_ADMIN_PASSWORD` from `.env` |
-| Scoring API docs (Swagger) | http://localhost:8000/docs (`POST /score`, `GET /health`) | — |
-| Dashboard | http://localhost:3000/d/yuma-shield | Grafana login |
-| Kafka UI | http://localhost:8080 | — |
-| Kafka (external) | `localhost:29092` | — |
+Other commands: `make evaluate` (bulk-scores held-out transactions that have no decision), `make psql`, `make topics`, `make logs`, `make ps`, `make down`.
 
-`make seed` accepts simulator options, e.g. `docker compose run --rm simulator history --accounts 10000 --days 90 --fraud-rate 0.005 --seed 7 --reset`.
+### Reports produced
 
-Generating traffic against the API:
-
-```bash
-make live ARGS="--tps 20 --duration 30"                 # legitimate traffic
-make attack TYPE=sim_swap ARGS="--speedup 60"           # account_takeover | sim_swap | mule_account | fake_qr
-```
-
-Attacks run their timeline compressed by `--speedup`, so a scenario that lasts 90 minutes in the history finishes in seconds.
-
-The **baseline** service simulates the current engine as the case describes it: static rules (amount caps per channel, a night-time cap, a daily cumulative cap and a restricted-accounts list that is updated by hand after each incident) reviewed in 15-minute batches, with no behavior or device analysis. Its thresholds live in `config/baseline_rules.yaml` (not versioned) and are calibrated only to the ~92 % false-positive rate stated in the case. It evaluates every stored transaction, so both engines are compared on the same data.
-
-`make evaluate` scores with Yuma Shield only the transactions the model did not see during training.
-
-### Simulator control service
-
-`control` exposes the simulator over HTTP (docs at http://localhost:8001/docs) so seeds, live traffic and attacks can be launched as background jobs, for example from the portal:
-
-| Endpoint | What it does |
-|----------|--------------|
-| `POST /jobs/seed` | Generates a new labeled dataset (replacing the current one), waits for the baseline and scores everything with Yuma Shield. A different `seed` gives data the model has never seen. |
-| `POST /jobs/live` | Sends legitimate traffic to the scoring API. |
-| `POST /jobs/attack` | Launches one fraud scenario. |
-| `GET /jobs`, `GET /jobs/{id}` | Job status and log. |
-
-The scoring API also has `POST /admin/replay` (used by the seed job) at http://localhost:8000/docs.
+- `ml/artifacts/meta.json` — model version, splits, validation and test metrics, global feature importance.
+- `ml/artifacts/fairness.json` — block and flag rates by department and age range (these attributes are never model features; they are only used to audit).
+- `ml/artifacts/sandbox_report.json` — indicators returned by the case sandbox for the decided period.
 
 ### What is stored for every decision
 
-Each Yuma Shield decision keeps the 21 feature values, the hard rules evaluated, the score, the reasons, the time spent per stage (features, model, total) and an audit trail (`scored` by the API, `persisted` by the consumer with Kafka topic, partition, offset and lag). Each baseline decision keeps the result of every static rule. This is what allows any transaction to be reconstructed and explained.
-
-Other commands: `make psql` (SQL shell on the project database), `make topics`, `make logs`, `make ps`, `make down`. The `session-events` and `decisions` topics are created automatically.
+The feature values, the hard rules evaluated, the score, the reasons, the time spent per stage and an audit trail (`scored` by the API, `persisted` by the consumer with Kafka topic, partition, offset and lag). Each baseline decision keeps the legacy rules that fired.
 
 ## Configuration and confidentiality
 
-The challenge forbids publishing rules and thresholds. `config/rules.yaml`, `config/thresholds.yaml` and `.env` are therefore git-ignored; the repository only holds `*.example.*` templates with dummy values. Data is not versioned either.
+The challenge forbids publishing rules and thresholds. `config/rules.yaml`, `config/thresholds.yaml`, `config/baseline_rules.yaml` and `.env` are git-ignored; the repository only holds `*.example.*` templates with dummy values. The case package and the data are git-ignored too.
 
 ## Challenge constraints driving the design
 
-- Synthetic data that never leaves the hackathon environment.
-- Explainable and auditable decisions; no region, age or income used as model features.
+- Decision in < 300 ms with peaks of 150 TPS.
+- No future information: only data before the operation is used.
+- Explainable and auditable decisions; no region, age or income used as model features, and a fairness audit by segment.
 - Permanent blocks only after human review; no extra friction for legitimate users.
 - Encryption in transit and at rest; open-source components.

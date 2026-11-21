@@ -8,9 +8,10 @@ from psycopg_pool import ConnectionPool
 from app.core.settings import DECISIONS_TOPIC
 from app.domain.model import Scorer
 from app.domain.reasons import RULE_REASONS, build_reasons
+from app.domain.rules import RULE_ACTIONS
 from app.infra.kafka import Publisher
 from app.schemas.scoring import ScoreRequest, ScoreResponse
-from shield_ml.features import FEATURES_QUERY, to_vector
+from shield_ml.features import FEATURES_QUERY, build_row
 
 
 class ScoringService:
@@ -23,27 +24,28 @@ class ScoringService:
     started = time.perf_counter()
     self.scorer.refresh()
 
-    at = req.created_at or datetime.now(timezone.utc)
-    transaction_id = req.transaction_id or uuid.uuid4()
-    checks = self.scorer.rules.evaluate(req.target_account, req.channel, req.amount)
+    at = req.occurred_at or datetime.now(timezone.utc)
+    transaction_id = req.transaction_id or f"T-{uuid.uuid4().hex[:12]}"
+    checks = self.scorer.rules.evaluate(req.destination_id, req.operation_type, req.amount)
     rule = next((c["rule"] for c in checks if c["fired"]), None)
     features = None
     timings: dict[str, float] = {}
 
     if rule:
       value = 1.0
-      action = "hold"
+      action = RULE_ACTIONS[rule]
       reasons = [
         {"feature": rule, "text": RULE_REASONS[rule], "effect": "raises_risk", "impact": 1.0}
       ]
     else:
-      row = self._fetch_features(req, at)
+      tx = {**req.model_dump(), "occurred_at": at}
+      history = self._fetch_history(req, at)
       fetched = time.perf_counter()
-      vector = to_vector(row, req.channel)
+      vector = build_row(tx, history)
       value, contributions = self.scorer.predict(vector)
       action = self.scorer.thresholds.decide(value)
       reasons = build_reasons(self.scorer.features, vector, contributions)
-      features = {name: None if math.isnan(v) else v for name, v in zip(self.scorer.features, vector)}
+      features = {n: None if math.isnan(v) else v for n, v in zip(self.scorer.features, vector)}
       timings = {
         "features_ms": round((fetched - started) * 1000, 2),
         "model_ms": round((time.perf_counter() - fetched) * 1000, 2),
@@ -56,7 +58,7 @@ class ScoringService:
 
     self.publisher.publish(
       DECISIONS_TOPIC,
-      str(transaction_id),
+      transaction_id,
       self._message(
         req, at, transaction_id, decision_id, value, action, rule, reasons, latency_ms,
         features, checks, timings,
@@ -73,18 +75,17 @@ class ScoringService:
       model_version=self.scorer.version,
     )
 
-  def _fetch_features(self, req: ScoreRequest, at: datetime) -> dict:
+  def _fetch_history(self, req: ScoreRequest, at: datetime) -> dict:
     with self.pool.connection() as conn:
       return conn.execute(
-        FEATURES_QUERY,
-        (req.source_account, req.target_account, req.amount, req.channel, req.device, at),
+        FEATURES_QUERY, (req.customer_id, req.destination_id, req.device_id, at)
       ).fetchone()
 
   def _message(
     self,
     req: ScoreRequest,
     at: datetime,
-    transaction_id: uuid.UUID,
+    transaction_id: str,
     decision_id: uuid.UUID,
     score: float,
     action: str,
@@ -95,17 +96,10 @@ class ScoringService:
     checks: list[dict],
     timings: dict,
   ) -> dict:
+    transaction = req.model_dump(exclude={"meta", "transaction_id", "occurred_at"})
     return {
       "decision_id": str(decision_id),
-      "transaction": {
-        "id": str(transaction_id),
-        "source_account": req.source_account,
-        "target_account": req.target_account,
-        "amount": req.amount,
-        "channel": req.channel,
-        "device": req.device,
-        "created_at": at.isoformat(),
-      },
+      "transaction": {"id": transaction_id, "occurred_at": at.isoformat(), **transaction},
       "decision": {
         "score": score,
         "action": action,

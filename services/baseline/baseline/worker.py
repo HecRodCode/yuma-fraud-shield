@@ -14,32 +14,41 @@ log = logging.getLogger("baseline")
 PENDING_QUERY = """
   SELECT
     t.id,
-    t.channel,
+    t.operation_type,
     t.amount::FLOAT8 AS amount,
-    t.created_at,
-    EXTRACT(HOUR FROM t.created_at AT TIME ZONE 'America/Bogota')::INT AS hour_of_day,
+    t.balance_before::FLOAT8 AS balance_before,
+    t.new_destination,
+    t.new_device,
+    t.password_change_24h,
+    t.sim_change_48h,
+    t.ip_department_mismatch,
+    t.account_age_days,
+    t.occurred_at,
+    EXTRACT(HOUR FROM t.occurred_at AT TIME ZONE 'America/Bogota')::INT AS hour_of_day,
+    (
+      SELECT count(*) FROM transactions p
+      WHERE p.customer_id = t.customer_id
+        AND p.operation_type IN ('instant_transfer', 'correspondent_withdrawal', 'atm_withdrawal')
+        AND p.occurred_at > t.occurred_at - INTERVAL '60 minutes'
+        AND (p.occurred_at, p.id) <= (t.occurred_at, t.id)
+    ) AS outflows_60m,
     (
       SELECT COALESCE(sum(p.amount), 0)::FLOAT8 FROM transactions p
-      WHERE p.source_account = t.source_account
-        AND p.created_at > t.created_at - INTERVAL '24 hours'
-        AND p.created_at <= t.created_at
-    ) AS day_total,
-    (
-      t.target_account <> 'sys_cashpoint' AND EXISTS (
-        SELECT 1 FROM transactions f
-        WHERE f.target_account = t.target_account
-          AND f.is_fraud
-          AND f.created_at + make_interval(hours => %(delay)s) <= t.created_at
-      )
-    ) AS restricted_target
+      WHERE p.customer_id = t.customer_id
+        AND p.operation_type IN ('instant_transfer', 'correspondent_withdrawal', 'atm_withdrawal')
+        AND p.occurred_at >= t.occurred_at - INTERVAL '1 day'
+        AND (p.occurred_at, p.id) <= (t.occurred_at, t.id)
+        AND (p.occurred_at AT TIME ZONE 'America/Bogota')::DATE
+          = (t.occurred_at AT TIME ZONE 'America/Bogota')::DATE
+    ) AS daily_total
   FROM transactions t
   WHERE NOT EXISTS (SELECT 1 FROM baseline_decisions b WHERE b.transaction_id = t.id)
-  ORDER BY t.created_at
+  ORDER BY t.occurred_at, t.id
   LIMIT %(limit)s
 """
 
 INSERT_QUERY = (
-  "INSERT INTO baseline_decisions (transaction_id, action, rule, details, detected_at) "
+  "INSERT INTO baseline_decisions (transaction_id, action, rules_fired, details, detected_at) "
   "VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING"
 )
 
@@ -53,21 +62,28 @@ def batch_end(created_at: datetime, minutes: int) -> datetime:
 def process_pending(conn: psycopg.Connection, rules: StaticRules) -> int:
   total = 0
   while True:
-    rows = conn.execute(
-      PENDING_QUERY, {"delay": rules.restricted_delay_hours, "limit": BATCH_SIZE}
-    ).fetchall()
+    rows = conn.execute(PENDING_QUERY, {"limit": BATCH_SIZE}).fetchall()
     if not rows:
       return total
     decisions = []
     for row in rows:
-      rule, checks = rules.evaluate(row)
+      fired, severity = rules.evaluate(row)
+      details = {
+        "fired": fired,
+        "severity": severity,
+        "variables": {
+          "hour_of_day": row["hour_of_day"],
+          "outflows_60m": row["outflows_60m"],
+          "daily_total": row["daily_total"],
+        },
+      }
       decisions.append(
         (
           row["id"],
-          "alert" if rule else "approve",
-          rule,
-          json.dumps({"checks": checks}),
-          batch_end(row["created_at"], rules.batch_minutes),
+          "alert" if fired else "approve",
+          "|".join(fired) or None,
+          json.dumps(details),
+          batch_end(row["occurred_at"], rules.batch_minutes),
         )
       )
     with conn.cursor() as cur:

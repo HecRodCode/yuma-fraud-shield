@@ -1,3 +1,4 @@
 score:
-  low_max: 0.00
-  high_min: 0.00
+  low_max: 0.0
+  high_min: 0.0
+  reject_min: 0.0

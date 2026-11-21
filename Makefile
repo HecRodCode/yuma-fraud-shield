@@ -4,7 +4,7 @@ POSTGRES_PORT ?= 5432
 export PGPASSWORD = $(POSTGRES_PASSWORD)
 PSQL = psql -h $(POSTGRES_HOST) -p $(POSTGRES_PORT) -U $(POSTGRES_USER) -v ON_ERROR_STOP=1
 
-.PHONY: setup db up down logs ps seed train evaluate live attack psql topics
+.PHONY: setup db up down logs ps load sandbox sandbox-run seed train evaluate live attack psql topics
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -32,6 +32,15 @@ ps:
 
 seed:
 	docker compose run --rm --build simulator history --reset
+
+load:
+	docker compose run --rm --build loader
+
+sandbox:
+	docker compose up -d sandbox
+
+sandbox-run:
+	docker compose run --rm --build runner $(ARGS)
 
 train:
 	docker compose run --rm --build trainer

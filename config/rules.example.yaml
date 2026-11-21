@@ -1,7 +1,9 @@
-restricted_accounts: []
+restricted_destinations: []
 amount_caps:
-  transfer: 0
-  qr: 0
+  instant_transfer: 0
+  qr_payment: 0
   bill_payment: 0
-  topup: 0
-  withdrawal: 0
+  correspondent_withdrawal: 0
+  atm_withdrawal: 0
+  mobile_topup: 0
+  virtual_card_purchase: 0

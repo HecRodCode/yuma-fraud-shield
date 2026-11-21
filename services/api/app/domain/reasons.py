@@ -1,8 +1,18 @@
 import math
 
 RULE_REASONS = {
-  "restricted_account": "Target account is on a restricted list",
-  "amount_cap": "Amount exceeds the cap allowed for this channel",
+  "restricted_destination": "Destination is on the restricted list",
+  "amount_cap": "Amount exceeds the cap allowed for this operation",
+}
+
+OPERATION_NAMES = {
+  "instant_transfer": "instant transfer",
+  "qr_payment": "QR payment",
+  "bill_payment": "bill payment",
+  "correspondent_withdrawal": "correspondent withdrawal",
+  "atm_withdrawal": "ATM withdrawal",
+  "mobile_topup": "mobile top-up",
+  "virtual_card_purchase": "virtual card purchase",
 }
 
 
@@ -32,52 +42,68 @@ def _count(template: str):
   return lambda v: template.format(n=int(v))
 
 
+def _flag(yes: str, no: str):
+  return lambda v: yes if v else no
+
+
 TEMPLATES = {
   "amount": lambda v: f"Amount is {_cop(v)}",
-  "amount_ratio": lambda v: (
+  "balance_ratio": lambda v: (
+    "Balance is unknown" if math.isnan(v) else f"Amount is {v:.0%} of the available balance"
+  ),
+  "amount_vs_avg_30d": lambda v: (
     "No spending history to compare with"
     if math.isnan(v)
-    else f"Amount is {v:.1f}x the sender's 30-day average"
+    else f"Amount is {v:.1f}x the customer's 30-day average"
   ),
-  "src_tx_10m": _count("{n} outgoing transactions in the last 10 minutes"),
-  "src_amount_10m": lambda v: f"{_cop(v)} sent in the last 10 minutes",
-  "src_age_hours": lambda v: f"Sender account is {_duration(v * 60)} old",
-  "src_inflow_24h": lambda v: f"Sender received {_cop(v)} in the last 24 hours",
-  "src_inflow_senders_60m": _count("Sender received money from {n} different accounts in the last hour"),
-  "device_age_minutes": lambda v: (
-    "Device never seen on this account"
-    if v == 0
-    else f"Device first seen {_duration(v)} ago"
+  "new_destination": _flag(
+    "First operation to this destination in 180 days", "Customer has paid this destination before"
   ),
+  "new_device": _flag("Device registered in the last 24 hours", "Device is a familiar one"),
+  "password_change_24h": _flag("Password changed in the last 24 hours", "No recent password change"),
+  "sim_change_48h": _flag("SIM change reported in the last 48 hours", "No recent SIM change"),
+  "ip_department_mismatch": _flag(
+    "Connection comes from outside the customer's usual area", "Connection is from the usual area"
+  ),
+  "account_age_days": lambda v: f"Account is {_duration(v * 1440)} old",
+  "hour_of_day": lambda v: f"Operation made at {int(v):02d}:00",
+  "day_of_week": lambda v: "Operation made on a weekend" if v >= 5 else "Operation made on a weekday",
+  "out_tx_10m": _count("{n} operations by the customer in the last 10 minutes"),
+  "out_tx_60m": _count("{n} operations by the customer in the last hour"),
+  "out_amount_24h": lambda v: f"{_cop(v)} moved by the customer in the last 24 hours",
+  "avg_amount_30d": lambda v: (
+    "No spending history" if math.isnan(v) else f"Customer's 30-day average is {_cop(v)}"
+  ),
+  "tx_count_30d": _count("{n} operations by the customer in the last 30 days"),
+  "failed_logins_24h": _count("{n} failed logins in the last 24 hours"),
   "mins_since_password_change": _since("password change"),
-  "mins_since_phone_change": _since("phone number change"),
-  "mins_since_device_change": _since("device change"),
-  "otp_15m": _count("{n} OTP requests in the last 15 minutes"),
-  "hour_of_day": lambda v: f"Transaction made at {int(v):02d}:00",
-  "tgt_age_hours": lambda v: (
-    "Target account is unknown"
-    if math.isnan(v)
-    else f"Target account is {_duration(v * 60)} old"
+  "mins_since_sim_change": _since("SIM change"),
+  "mins_since_device_registration": _since("device registration"),
+  "device_age_minutes": lambda v: (
+    "Device never seen on this account" if v == 0 else f"Device first seen {_duration(v)} ago"
   ),
-  "tgt_is_merchant": lambda v: "Target is a merchant" if v else "Target is a personal account",
-  "tgt_senders_60m": _count("Target received money from {n} different accounts in the last hour"),
-  "tgt_tx_60m": _count("Target received {n} payments in the last hour"),
-  "tgt_avg_amount_60m": lambda v: (
-    "No recent payments to the target"
-    if math.isnan(v)
-    else f"Average payment to the target in the last hour is {_cop(v)}"
+  "in_senders_60m": _count("Customer received money from {n} different people in the last hour"),
+  "in_senders_24h": _count("Customer received money from {n} different people in the last 24 hours"),
+  "in_amount_24h": lambda v: f"Customer received {_cop(v)} in the last 24 hours",
+  "dest_senders_60m": _count("Destination received money from {n} different customers in the last hour"),
+  "dest_tx_60m": _count("Destination received {n} payments in the last hour"),
+  "dest_senders_24h": _count("Destination received money from {n} different customers in the last 24 hours"),
+  "dest_first_seen_hours": lambda v: (
+    "Destination never seen before" if math.isnan(v) else f"Destination first seen {_duration(v * 60)} ago"
   ),
-  "tgt_inflow_24h": lambda v: f"Target received {_cop(v)} in the last 24 hours",
-  "tgt_outflow_24h": lambda v: f"Target sent out {_cop(v)} in the last 24 hours",
-  "pair_first_time": lambda v: (
-    "First transaction between these accounts" if v else "Sender has paid this target before"
+  "dest_age_days": lambda v: (
+    "Destination is not a Yuma account"
+    if math.isnan(v)
+    else f"Destination account is {_duration(v * 1440)} old"
   ),
 }
 
 
 def describe(feature: str, value: float) -> str:
-  if feature.startswith("channel_"):
-    return f"Channel is {feature.removeprefix('channel_').replace('_', ' ')}"
+  for prefix, label in (("operation_", "Operation"), ("channel_", "Channel"), ("destination_", "Destination")):
+    if feature.startswith(prefix):
+      name = feature.removeprefix(prefix)
+      return f"{label} is {OPERATION_NAMES.get(name, name.replace('_', ' '))}"
   return TEMPLATES[feature](value)
 
 
@@ -89,7 +115,7 @@ def build_reasons(
   for i in ranked:
     if len(reasons) == top:
       break
-    if features[i].startswith("channel_") and values[i] == 0:
+    if features[i].startswith(("operation_", "channel_", "destination_")) and values[i] == 0:
       continue
     reasons.append(
       {

@@ -94,6 +94,37 @@ services:
       kafka-init: { condition: service_completed_successfully }
     restart: unless-stopped
 
+  loader:
+    <<: *app
+    profiles: ["tools"]
+    command: python -m shield_ml.load_case
+    environment:
+      <<: *app-env
+      CASE_DATA_DIR: /data
+    volumes:
+      - ./docs/Caso_de_estudio_Yuma_Pay/03_Datos:/data:ro
+
+  sandbox:
+    image: python:3.12-slim
+    network_mode: host
+    profiles: ["tools"]
+    command: ["python", "/sandbox/mock_api.py", "--puerto", "${SANDBOX_PORT:-8090}", "--datos", "/data"]
+    volumes:
+      - ./docs/Caso_de_estudio_Yuma_Pay/04_Sandbox_API:/sandbox:ro
+      - ./docs/Caso_de_estudio_Yuma_Pay/03_Datos:/data:ro
+
+  runner:
+    build: ./services/sandbox
+    image: yuma-shield-runner
+    network_mode: host
+    profiles: ["tools"]
+    environment:
+      API_URL: http://localhost:${API_PORT:-8000}
+      SANDBOX_URL: http://localhost:${SANDBOX_PORT:-8090}
+      OUT_DIR: /out
+    volumes:
+      - ./ml/artifacts:/out
+
   trainer:
     <<: *app
     profiles: ["tools"]
@@ -141,7 +172,7 @@ services:
 
   control:
     <<: *simulator
-    profiles: []
+    profiles: ["simulator"]
     command: ["serve", "--port", "${SIM_PORT:-8001}"]
     depends_on:
       kafka-init: { condition: service_completed_successfully }

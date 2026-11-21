@@ -11,19 +11,24 @@ from psycopg.rows import dict_row
 from app.core.settings import ARTIFACTS_DIR, database_dsn
 from app.domain.model import ModelNotReadyError, Scorer
 from app.domain.reasons import RULE_REASONS, build_reasons
-from shield_ml.features import to_vector
+from app.domain.rules import RULE_ACTIONS
+from shield_ml.features import build_row
 
 log = logging.getLogger("replay")
 
 PENDING_QUERY = """
-  SELECT t.id, t.channel, t.amount::FLOAT8 AS amount, t.target_account, t.created_at, f.*
+  SELECT
+    t.id, t.occurred_at, t.operation_type, t.channel, t.amount::FLOAT8 AS amount,
+    t.balance_before, t.destination_id, t.destination_type, t.new_destination, t.new_device,
+    t.password_change_24h, t.sim_change_48h, t.ip_department_mismatch, t.account_age_days,
+    f.*
   FROM transactions t
   CROSS JOIN LATERAL compute_features(
-    t.source_account, t.target_account, t.amount, t.channel, t.device, t.created_at
+    t.customer_id, t.destination_id, t.device_id, t.occurred_at
   ) f
-  WHERE t.created_at >= %s
+  WHERE t.occurred_at >= %s
     AND NOT EXISTS (SELECT 1 FROM decisions d WHERE d.transaction_id = t.id)
-  ORDER BY t.created_at
+  ORDER BY t.occurred_at, t.id
 """
 
 CLEAR_QUERIES = (
@@ -48,18 +53,18 @@ def run_replay(scorer: Scorer, replay_all: bool = False) -> dict:
     if not rows:
       return {"decisions": 0, "alerts": 0, "model": scorer.version}
 
-    vectors = np.array([to_vector(r, r["channel"]) for r in rows])
+    vectors = np.array([build_row(r, r) for r in rows])
     matrix = xgb.DMatrix(vectors, feature_names=scorer.features, missing=math.nan)
     contribs = scorer.booster.predict(matrix, pred_contribs=True)
     scores = 1.0 / (1.0 + np.exp(-contribs.sum(axis=1)))
 
     decisions, alerts = [], []
     for i, row in enumerate(rows):
-      checks = scorer.rules.evaluate(row["target_account"], row["channel"], row["amount"])
+      checks = scorer.rules.evaluate(row["destination_id"], row["operation_type"], row["amount"])
       rule = next((c["rule"] for c in checks if c["fired"]), None)
       features = None
       if rule:
-        score, action = 1.0, "hold"
+        score, action = 1.0, RULE_ACTIONS[rule]
         reasons = [
           {"feature": rule, "text": RULE_REASONS[rule], "effect": "raises_risk", "impact": 1.0}
         ]
@@ -77,11 +82,11 @@ def run_replay(scorer: Scorer, replay_all: bool = False) -> dict:
         (
           decision_id, row["id"], round(score, 5), action, rule, json.dumps(reasons),
           json.dumps(features), json.dumps(checks), None, scorer.version, "replay",
-          row["created_at"],
+          row["occurred_at"],
         )
       )
-      if action == "hold":
-        alerts.append((decision_id, row["created_at"]))
+      if action in ("hold", "reject"):
+        alerts.append((decision_id, row["occurred_at"]))
 
     with conn.cursor() as cur:
       with cur.copy(

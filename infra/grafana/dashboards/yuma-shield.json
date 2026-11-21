@@ -206,7 +206,7 @@
       "id": 4,
       "type": "stat",
       "title": "False positives: Yuma Shield",
-      "description": "Share of retained alerts that were legitimate. Goal: below 60 %.",
+      "description": "Official sandbox definition: false positives / (fraud flagged + legitimate blocked). Goal: below 60 %.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "shield-pg"
@@ -226,7 +226,7 @@
           "format": "table",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT 100.0 * count(*) FILTER (WHERE shield_action = 'hold' AND NOT is_fraud) / NULLIF(count(*) FILTER (WHERE shield_action = 'hold'), 0) AS pct FROM v_comparison",
+          "rawSql": "SELECT 100.0 * count(*) FILTER (WHERE shield_blocked AND NOT is_fraud) / NULLIF(count(*) FILTER (WHERE (shield_flagged AND is_fraud) OR (shield_blocked AND NOT is_fraud)), 0) AS pct FROM v_comparison",
           "refId": "A"
         }
       ],
@@ -270,7 +270,7 @@
       "id": 5,
       "type": "stat",
       "title": "False positives: current engine",
-      "description": "Same measure for the simulated current engine.",
+      "description": "Official sandbox definition: false positives / (fraud flagged + legitimate blocked). Goal: below 60 %.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "shield-pg"
@@ -647,7 +647,7 @@
       "id": 9,
       "type": "barchart",
       "title": "False positives vs 60 % goal",
-      "description": "Share of alerts that were legitimate transactions. Red line: 60 % goal.",
+      "description": "Official sandbox definition. Red line: 60 % goal.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "shield-pg"
@@ -667,7 +667,7 @@
           "format": "table",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT 'False positives' AS metric, 100.0 * count(*) FILTER (WHERE shield_action = 'hold' AND NOT is_fraud) / NULLIF(count(*) FILTER (WHERE shield_action = 'hold'), 0) AS \"Yuma Shield\", 100.0 * count(*) FILTER (WHERE baseline_action = 'alert' AND NOT is_fraud) / NULLIF(count(*) FILTER (WHERE baseline_action = 'alert'), 0) AS \"Current engine\" FROM v_comparison",
+          "rawSql": "SELECT 'False positives' AS metric, 100.0 * count(*) FILTER (WHERE shield_blocked AND NOT is_fraud) / NULLIF(count(*) FILTER (WHERE (shield_flagged AND is_fraud) OR (shield_blocked AND NOT is_fraud)), 0) AS \"Yuma Shield\", 100.0 * count(*) FILTER (WHERE baseline_action = 'alert' AND NOT is_fraud) / NULLIF(count(*) FILTER (WHERE baseline_action = 'alert'), 0) AS \"Current engine\" FROM v_comparison",
           "refId": "A"
         }
       ],
@@ -956,7 +956,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT date_trunc('day', created_at) AS time, count(*) FILTER (WHERE shield_action = 'hold') AS \"Yuma Shield\", count(*) FILTER (WHERE baseline_action = 'alert') AS \"Current engine\" FROM v_comparison WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1",
+          "rawSql": "SELECT date_trunc('day', created_at) AS time, count(*) FILTER (WHERE shield_blocked) AS \"Yuma Shield\", count(*) FILTER (WHERE baseline_action = 'alert') AS \"Current engine\" FROM v_comparison WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1",
           "refId": "A"
         }
       ],
@@ -1074,7 +1074,7 @@
           "format": "time_series",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT date_trunc('day', created_at) AS time, sum(sum(amount) FILTER (WHERE shield_action = 'hold' AND is_fraud)) OVER (ORDER BY date_trunc('day', created_at)) AS \"Yuma Shield\", sum(sum(amount) FILTER (WHERE baseline_action = 'alert' AND is_fraud)) OVER (ORDER BY date_trunc('day', created_at)) AS \"Current engine\" FROM v_comparison WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1",
+          "rawSql": "SELECT date_trunc('day', created_at) AS time, sum(sum(amount) FILTER (WHERE shield_blocked AND is_fraud)) OVER (ORDER BY date_trunc('day', created_at)) AS \"Yuma Shield\", sum(sum(amount) FILTER (WHERE baseline_action = 'alert' AND is_fraud)) OVER (ORDER BY date_trunc('day', created_at)) AS \"Current engine\" FROM v_comparison WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1",
           "refId": "A"
         }
       ],
@@ -1243,6 +1243,21 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "reject"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-red"
                 }
               }
             ]

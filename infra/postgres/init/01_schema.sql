@@ -1,52 +1,102 @@
 DROP TABLE IF EXISTS
-  labels, alerts, baseline_decisions, decisions, transactions, session_events, accounts, audit_log
+  labels, alerts, baseline_decisions, decisions, legacy_alerts, legacy_rules,
+  transactions, session_events, customers, audit_log, accounts
   CASCADE;
 DROP FUNCTION IF EXISTS audit_log_immutable() CASCADE;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE accounts (
+CREATE TABLE customers (
   id TEXT PRIMARY KEY,
-  created_at TIMESTAMPTZ NOT NULL,
-  is_merchant BOOLEAN NOT NULL DEFAULT FALSE
+  type TEXT NOT NULL,
+  department TEXT,
+  age_range TEXT,
+  joined_on DATE NOT NULL,
+  confirmed_mule BOOLEAN NOT NULL DEFAULT FALSE,
+  onboarding_channel TEXT
 );
 
 CREATE TABLE session_events (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  account_id TEXT NOT NULL REFERENCES accounts(id),
+  id TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
   type TEXT NOT NULL
-    CHECK (type IN ('login', 'device_change', 'password_change', 'phone_change', 'otp_requested')),
-  device TEXT,
+    CHECK (type IN ('login', 'device_registration', 'password_change', 'sim_change')),
+  device_id TEXT,
+  os TEXT,
+  ip_department TEXT,
+  result TEXT NOT NULL
+    CHECK (result IN ('success', 'failed')),
   occurred_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE INDEX idx_session_events_account_time ON session_events (account_id, occurred_at DESC);
-CREATE INDEX idx_session_events_type_time ON session_events (account_id, type, occurred_at DESC);
+CREATE INDEX idx_session_events_customer_time ON session_events (customer_id, occurred_at DESC);
+CREATE INDEX idx_session_events_type_time ON session_events (customer_id, type, occurred_at DESC);
 
 CREATE TABLE transactions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  source_account TEXT NOT NULL REFERENCES accounts(id),
-  target_account TEXT NOT NULL REFERENCES accounts(id),
-  amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
+  id TEXT PRIMARY KEY,
+  occurred_at TIMESTAMPTZ NOT NULL,
+  customer_id TEXT NOT NULL REFERENCES customers(id),
+  operation_type TEXT NOT NULL
+    CHECK (operation_type IN (
+      'instant_transfer', 'qr_payment', 'bill_payment', 'correspondent_withdrawal',
+      'atm_withdrawal', 'mobile_topup', 'virtual_card_purchase'
+    )),
   channel TEXT NOT NULL,
-  device TEXT,
-  created_at TIMESTAMPTZ NOT NULL,
-  -- ground truth, only available because the data is synthetic
+  amount BIGINT NOT NULL CHECK (amount > 0),
+  balance_before BIGINT NOT NULL,
+  destination_id TEXT NOT NULL,
+  destination_type TEXT NOT NULL,
+  new_destination BOOLEAN NOT NULL,
+  device_id TEXT,
+  new_device BOOLEAN NOT NULL,
+  password_change_24h BOOLEAN NOT NULL,
+  sim_change_48h BOOLEAN NOT NULL,
+  ip_department TEXT,
+  ip_department_mismatch BOOLEAN NOT NULL,
+  account_age_days INT NOT NULL,
+  -- ground truth from the case dataset, never available at scoring time
   is_fraud BOOLEAN NOT NULL DEFAULT FALSE,
   fraud_type TEXT
-    CHECK (fraud_type IN ('account_takeover', 'sim_swap', 'mule_account', 'fake_qr'))
+    CHECK (fraud_type IN (
+      'account_takeover', 'sim_swap', 'social_engineering', 'qr_scam', 'mule_account'
+    )),
+  source TEXT NOT NULL DEFAULT 'dataset'
+    CHECK (source IN ('dataset', 'simulated', 'live'))
 );
 
-CREATE INDEX idx_transactions_source_time ON transactions (source_account, created_at DESC);
-CREATE INDEX idx_transactions_target_time ON transactions (target_account, created_at DESC);
-CREATE INDEX idx_transactions_time ON transactions (created_at DESC);
+CREATE INDEX idx_transactions_customer_time ON transactions (customer_id, occurred_at DESC);
+CREATE INDEX idx_transactions_destination_time ON transactions (destination_id, occurred_at DESC);
+CREATE INDEX idx_transactions_time ON transactions (occurred_at DESC);
+
+CREATE TABLE legacy_rules (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  condition TEXT,
+  severity TEXT NOT NULL,
+  target_fraud TEXT,
+  last_modified DATE
+);
+
+CREATE TABLE legacy_alerts (
+  id TEXT PRIMARY KEY,
+  transaction_id TEXT NOT NULL REFERENCES transactions(id),
+  customer_id TEXT NOT NULL,
+  alerted_at TIMESTAMPTZ NOT NULL,
+  rules_fired TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  status TEXT NOT NULL,
+  review_minutes INT,
+  analyst_decision TEXT,
+  action TEXT
+);
 
 CREATE TABLE decisions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  transaction_id UUID NOT NULL UNIQUE REFERENCES transactions(id),
+  transaction_id TEXT NOT NULL UNIQUE REFERENCES transactions(id),
   score NUMERIC(6, 5) NOT NULL,
   action TEXT NOT NULL
-    CHECK (action IN ('approve', 'challenge', 'hold')),
+    CHECK (action IN ('approve', 'challenge', 'hold', 'reject')),
   hard_rule TEXT,
   reasons JSONB NOT NULL,
   features JSONB,
@@ -64,10 +114,10 @@ CREATE INDEX idx_decisions_source_time ON decisions (source, created_at DESC);
 
 CREATE TABLE baseline_decisions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  transaction_id UUID NOT NULL UNIQUE REFERENCES transactions(id),
+  transaction_id TEXT NOT NULL UNIQUE REFERENCES transactions(id),
   action TEXT NOT NULL
     CHECK (action IN ('approve', 'alert')),
-  rule TEXT,
+  rules_fired TEXT,
   details JSONB,
   detected_at TIMESTAMPTZ NOT NULL
 );
@@ -94,7 +144,7 @@ CREATE TABLE labels (
 CREATE TABLE audit_log (
   id BIGSERIAL PRIMARY KEY,
   entity TEXT NOT NULL,
-  entity_id UUID,
+  entity_id TEXT,
   event TEXT NOT NULL,
   details JSONB,
   actor TEXT NOT NULL,
