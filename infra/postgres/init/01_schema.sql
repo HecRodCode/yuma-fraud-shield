@@ -49,7 +49,7 @@ CREATE TABLE decisions (
     CHECK (action IN ('approve', 'challenge', 'hold')),
   hard_rule TEXT,
   reasons JSONB NOT NULL,
-  latency_ms INT NOT NULL,
+  latency_ms NUMERIC(8, 2) NOT NULL,
   model_version TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

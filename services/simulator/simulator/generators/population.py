@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from .models import SYSTEM_ACCOUNT, Account, new_account_id, new_device_id
+from simulator.domain.models import SYSTEM_ACCOUNT, Account, new_account_id, new_device_id
 
 
 def build_population(

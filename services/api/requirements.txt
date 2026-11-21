@@ -1,0 +1,9 @@
+fastapi>=0.115
+uvicorn>=0.30
+psycopg[binary,pool]>=3.2
+xgboost-cpu>=2.1
+scikit-learn>=1.5
+pandas>=2.2
+numpy>=2.0
+pyyaml>=6.0
+confluent-kafka>=2.5

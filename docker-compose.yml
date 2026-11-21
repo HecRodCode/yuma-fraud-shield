@@ -1,5 +1,21 @@
 name: yuma-shield
 
+x-app: &app
+  image: yuma-shield-app
+  build:
+    context: .
+    dockerfile: services/api/Dockerfile
+  network_mode: host
+  environment: &app-env
+    POSTGRES_HOST: ${POSTGRES_HOST:-localhost}
+    POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    POSTGRES_DB: ${POSTGRES_DB}
+    KAFKA_BOOTSTRAP: localhost:29092
+    CONFIG_DIR: /app/config
+    ARTIFACTS_DIR: /app/artifacts
+
 services:
   kafka:
     image: apache/kafka:3.8.0
@@ -61,6 +77,31 @@ services:
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
 
+  api:
+    <<: *app
+    command: uvicorn app.main:app --host 0.0.0.0 --port ${API_PORT:-8000} --workers 2
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+    volumes:
+      - ./config:/app/config:ro
+      - ./ml/artifacts:/app/artifacts:ro
+    restart: unless-stopped
+
+  persister:
+    <<: *app
+    command: python -m app.workers.persister
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  trainer:
+    <<: *app
+    profiles: ["tools"]
+    command: python -m shield_ml.train
+    volumes:
+      - ./config:/app/config
+      - ./ml/artifacts:/app/artifacts
+
   simulator:
     build: ./services/simulator
     profiles: ["tools"]
@@ -71,6 +112,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      KAFKA_BOOTSTRAP: localhost:29092
+      API_URL: http://localhost:${API_PORT:-8000}
 
 volumes:
   kafkadata:

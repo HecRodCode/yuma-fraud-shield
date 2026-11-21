@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from .models import (
+from simulator.domain.models import (
   SYSTEM_ACCOUNT,
   Account,
   Batch,
@@ -46,7 +46,7 @@ def generate_legit(
       )
 
       for t in times[:n_tx]:
-        tx = _legit_transaction(rng, acc, by_id, regular, device, t)
+        tx = build_legit_transaction(rng, acc, by_id, regular, device, t)
         if tx is None:
           continue
         batch.transactions.append(tx)
@@ -89,7 +89,7 @@ def _maybe_account_changes(
     )
 
 
-def _legit_transaction(
+def build_legit_transaction(
   rng: np.random.Generator,
   acc: Account,
   by_id: dict[str, Account],

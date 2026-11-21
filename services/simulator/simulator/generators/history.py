@@ -2,16 +2,16 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from .fraud import (
+from simulator.domain.models import Batch
+from simulator.generators.fraud import (
   AVG_FRAUD_TX_PER_SCENARIO,
   FRAUD_TYPES,
   SCENARIO_WEIGHTS,
   SCENARIOS,
   Context,
 )
-from .legit import generate_legit
-from .models import Batch
-from .population import build_population
+from simulator.generators.legit import generate_legit
+from simulator.generators.population import build_population
 
 
 def build_history(

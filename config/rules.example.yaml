@@ -1,6 +1,7 @@
-hard_rules:
-  - id: restricted_list
-    description: Target account is on a restricted list
-  - id: amount_cap
-    description: Amount exceeds the channel cap
-    cap: 0
+restricted_accounts: []
+amount_caps:
+  transfer: 0
+  qr: 0
+  bill_payment: 0
+  topup: 0
+  withdrawal: 0

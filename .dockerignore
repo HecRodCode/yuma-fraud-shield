@@ -1,0 +1,8 @@
+.git
+.env
+data
+ml/artifacts
+ml/notebooks
+docs
+loadtest
+**/__pycache__
