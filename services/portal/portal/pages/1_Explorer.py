@@ -3,7 +3,7 @@ import json
 import pandas as pd
 import streamlit as st
 
-from lib.db import BASELINE_COLOR, SHIELD_COLOR, query, rows
+from lib.db import BASELINE_COLOR, SHIELD_COLOR, execute, query, rows
 
 st.set_page_config(page_title="Transaction explorer", layout="wide")
 st.title("Transaction explorer")
@@ -82,6 +82,34 @@ head[1].metric("Risk score", f"{float(decision['score']):.3f}")
 head[2].metric("Current engine", "ALERT" if base and base[0]["action"] == "alert" else "APPROVE")
 head[3].metric("Ground truth", f"FRAUD ({tx['fraud_type']})" if tx["is_fraud"] else "legitimate")
 head[4].metric("Amount", f"COP {tx['amount']:,}")
+
+existing = rows("SELECT verdict, source, analyst FROM labels WHERE transaction_id = %s", (tx_id,))
+with st.container(border=True):
+  st.markdown("**Feedback**")
+  if existing:
+    st.write(f"Current label: **{existing[0]['verdict']}** ({existing[0]['source']}, by {existing[0]['analyst']})")
+  who = st.text_input("Reported by", value="customer-service", key="reporter")
+  fb_a, fb_b = st.columns(2)
+
+  def set_label(verdict: str) -> None:
+    execute(
+      [
+        ("INSERT INTO labels (transaction_id, verdict, source, analyst) "
+         "VALUES (%s, %s, 'customer_claim', %s) ON CONFLICT (transaction_id) DO UPDATE "
+         "SET verdict = EXCLUDED.verdict, source = EXCLUDED.source, analyst = EXCLUDED.analyst",
+         (tx_id, verdict, who)),
+        ("INSERT INTO audit_log (entity, entity_id, event, details, actor) "
+         "VALUES ('transaction', %s, 'labelled', %s, %s)",
+         (tx_id, json.dumps({"verdict": verdict, "source": "customer_claim"}), f"user:{who}")),
+      ]
+    )
+    st.rerun()
+
+  if fb_a.button("Report as fraud (customer claim)"):
+    set_label("fraud")
+  if fb_b.button("Mark as legitimate"):
+    set_label("legitimate")
+  st.caption("Labels feed the next training run. Claims cover fraud that was approved and never raised an alert.")
 
 tabs = st.tabs(["Why this decision", "Features", "Customer context", "Current engine", "Audit trail"])
 

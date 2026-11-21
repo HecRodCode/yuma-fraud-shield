@@ -15,6 +15,7 @@ x-app: &app
     KAFKA_BOOTSTRAP: localhost:29092
     CONFIG_DIR: /app/config
     ARTIFACTS_DIR: /app/artifacts
+    FEEDBACK_WEIGHT: ${FEEDBACK_WEIGHT:-2}
 
 services:
   kafka:
@@ -83,8 +84,8 @@ services:
     depends_on:
       kafka-init: { condition: service_completed_successfully }
     volumes:
-      - ./config:/app/config:ro
-      - ./ml/artifacts:/app/artifacts:ro
+      - ./config:/app/config
+      - ./ml/artifacts:/app/artifacts
     restart: unless-stopped
 
   persister:

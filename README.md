@@ -106,6 +106,12 @@ Other commands: `make evaluate` (bulk-scores held-out transactions that have no 
 - `ml/artifacts/fairness.json` — block and flag rates by department and age range (these attributes are never model features; they are only used to audit).
 - `ml/artifacts/sandbox_report.json` — indicators returned by the case sandbox for the decided period.
 
+### Feedback loop and model versions
+
+Analysts confirm or release alerts in the portal, and customer service can report fraud that was approved (a customer claim). Both are stored in `labels`. `POST /admin/retrain` (or the portal's Control page) trains a new version using those labels: operations simulated after the dataset period count as legitimate unless a label says otherwise, and labels on the October test month are stored but never used for training.
+
+Every version is stored in `ml/artifacts/models/<version>/` and registered in `model_versions`. A **promotion gate** publishes a new model only if, on the clean October test, fraud detected does not drop more than 1 pp, false positives do not rise more than 5 pp and legitimate customers blocked do not rise more than 0.5 pp. Otherwise the version is kept as `rejected`. `POST /admin/models/{version}/promote` rolls back to any stored version. `FEEDBACK_WEIGHT` (default 2) controls how much feedback labels weigh.
+
 ### What is stored for every decision
 
 The feature values, the hard rules evaluated, the score, the reasons, the time spent per stage and an audit trail (`scored` by the API, `persisted` by the consumer with Kafka topic, partition, offset and lag). Each baseline decision keeps the legacy rules that fired.

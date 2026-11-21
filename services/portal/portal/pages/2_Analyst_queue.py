@@ -61,8 +61,10 @@ col_a, col_b = st.columns(2)
 def label(verdict: str, status: str) -> None:
   execute(
     [
-      ("INSERT INTO labels (alert_id, verdict, analyst) VALUES (%s, %s, %s)",
-       (alert.alert_id, verdict, analyst)),
+      ("INSERT INTO labels (transaction_id, alert_id, verdict, source, analyst) "
+       "VALUES (%s, %s, %s, 'analyst', %s) ON CONFLICT (transaction_id) DO UPDATE "
+       "SET verdict = EXCLUDED.verdict, analyst = EXCLUDED.analyst, alert_id = EXCLUDED.alert_id",
+       (alert.transaction_id, alert.alert_id, verdict, analyst)),
       ("UPDATE alerts SET status = %s WHERE id = %s", (status, alert.alert_id)),
       ("INSERT INTO audit_log (entity, entity_id, event, details, actor) VALUES ('alert', %s, %s, %s, %s)",
        (str(alert.alert_id), "reviewed", json.dumps({"verdict": verdict}), f"analyst:{analyst}")),
@@ -75,4 +77,7 @@ if col_a.button("Confirm fraud", type="primary", width="stretch"):
   label("fraud", "fraud_confirmed")
 if col_b.button("Release (false positive)", width="stretch"):
   label("legitimate", "released")
-st.caption("Each verdict is stored as a label and in the audit log. Labels feed the next training run.")
+st.caption(
+  "Each verdict is stored as a label and in the audit log. Labels feed the next training run "
+  "(labels on October transactions are kept but excluded from training so the test stays clean)."
+)

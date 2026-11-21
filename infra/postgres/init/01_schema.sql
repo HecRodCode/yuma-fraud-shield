@@ -1,5 +1,5 @@
 DROP TABLE IF EXISTS
-  labels, alerts, baseline_decisions, decisions, legacy_alerts, legacy_rules,
+  model_versions, labels, alerts, baseline_decisions, decisions, legacy_alerts, legacy_rules,
   transactions, session_events, customers, audit_log, accounts
   CASCADE;
 DROP FUNCTION IF EXISTS audit_log_immutable() CASCADE;
@@ -134,11 +134,27 @@ CREATE INDEX idx_alerts_status_time ON alerts (status, created_at);
 
 CREATE TABLE labels (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  alert_id UUID NOT NULL UNIQUE REFERENCES alerts(id),
+  transaction_id TEXT NOT NULL UNIQUE REFERENCES transactions(id),
+  alert_id UUID REFERENCES alerts(id),
   verdict TEXT NOT NULL
     CHECK (verdict IN ('fraud', 'legitimate')),
+  source TEXT NOT NULL DEFAULT 'analyst'
+    CHECK (source IN ('analyst', 'customer_claim')),
   analyst TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE model_versions (
+  version TEXT PRIMARY KEY,
+  trained_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  trigger TEXT NOT NULL,
+  use_feedback BOOLEAN NOT NULL,
+  feedback JSONB,
+  thresholds JSONB,
+  metrics JSONB,
+  gate JSONB,
+  status TEXT NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'superseded', 'rejected'))
 );
 
 CREATE TABLE audit_log (
