@@ -60,6 +60,9 @@ def save_decision(cur, message: dict, kafka: dict) -> None:
       (message["decision_id"],),
     )
 
+  if meta.get("loadtest"):
+    return
+
   persisted_at = datetime.now(timezone.utc)
   scored_at = datetime.fromisoformat(decision["scored_at"])
   lag_ms = round((persisted_at - scored_at).total_seconds() * 1000, 1)

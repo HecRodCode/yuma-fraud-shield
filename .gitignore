@@ -13,6 +13,9 @@ data/raw/*
 data/synthetic/*
 !data/**/.gitkeep
 
+# Load test payloads are built from case data
+loadtest/payloads.json
+
 # Trained models
 ml/artifacts/*
 !ml/artifacts/.gitkeep

@@ -4,7 +4,7 @@ POSTGRES_PORT ?= 5432
 export PGPASSWORD = $(POSTGRES_PASSWORD)
 PSQL = psql -h $(POSTGRES_HOST) -p $(POSTGRES_PORT) -U $(POSTGRES_USER) -v ON_ERROR_STOP=1
 
-.PHONY: setup db up down logs ps load sandbox sandbox-run train evaluate live attack psql topics
+.PHONY: setup db up down logs ps load loadtest-data loadtest loadtest-clean sandbox sandbox-run train evaluate live attack psql topics
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -32,6 +32,15 @@ ps:
 
 load:
 	docker compose run --rm --build loader
+
+loadtest-data:
+	@$(PSQL) -d $(POSTGRES_DB) -At -c "SELECT json_agg(x) FROM (SELECT occurred_at, customer_id, operation_type, channel, amount, balance_before, destination_id, destination_type, new_destination, device_id, new_device, password_change_24h, sim_change_48h, ip_department, ip_department_mismatch, account_age_days FROM transactions WHERE source = 'dataset' AND occurred_at >= '2026-10-01' ORDER BY random() LIMIT 5000) x" > loadtest/payloads.json
+
+loadtest:
+	docker run --rm --user $(shell id -u) --network host -v $(CURDIR)/loadtest:/loadtest grafana/k6 run $(ARGS) /loadtest/score.js
+
+loadtest-clean:
+	$(PSQL) -d $(POSTGRES_DB) -c "DELETE FROM alerts WHERE decision_id IN (SELECT d.id FROM decisions d WHERE d.transaction_id LIKE 'LT-%')" -c "DELETE FROM decisions WHERE transaction_id LIKE 'LT-%'" -c "DELETE FROM transactions WHERE id LIKE 'LT-%'"
 
 sandbox:
 	docker compose up -d sandbox
