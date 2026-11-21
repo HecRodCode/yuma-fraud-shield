@@ -1,3 +1,4 @@
+import math
 import time
 import uuid
 from datetime import datetime, timezone
@@ -24,7 +25,10 @@ class ScoringService:
 
     at = req.created_at or datetime.now(timezone.utc)
     transaction_id = req.transaction_id or uuid.uuid4()
-    rule = self.scorer.rules.check(req.target_account, req.channel, req.amount)
+    checks = self.scorer.rules.evaluate(req.target_account, req.channel, req.amount)
+    rule = next((c["rule"] for c in checks if c["fired"]), None)
+    features = None
+    timings: dict[str, float] = {}
 
     if rule:
       value = 1.0
@@ -33,19 +37,30 @@ class ScoringService:
         {"feature": rule, "text": RULE_REASONS[rule], "effect": "raises_risk", "impact": 1.0}
       ]
     else:
-      vector = to_vector(self._fetch_features(req, at), req.channel)
+      row = self._fetch_features(req, at)
+      fetched = time.perf_counter()
+      vector = to_vector(row, req.channel)
       value, contributions = self.scorer.predict(vector)
       action = self.scorer.thresholds.decide(value)
       reasons = build_reasons(self.scorer.features, vector, contributions)
+      features = {name: None if math.isnan(v) else v for name, v in zip(self.scorer.features, vector)}
+      timings = {
+        "features_ms": round((fetched - started) * 1000, 2),
+        "model_ms": round((time.perf_counter() - fetched) * 1000, 2),
+      }
 
     decision_id = uuid.uuid4()
     latency_ms = round((time.perf_counter() - started) * 1000, 2)
+    timings["total_ms"] = latency_ms
     value = round(value, 5)
 
     self.publisher.publish(
       DECISIONS_TOPIC,
       str(transaction_id),
-      self._message(req, at, transaction_id, decision_id, value, action, rule, reasons, latency_ms),
+      self._message(
+        req, at, transaction_id, decision_id, value, action, rule, reasons, latency_ms,
+        features, checks, timings,
+      ),
     )
 
     return ScoreResponse(
@@ -76,6 +91,9 @@ class ScoringService:
     rule: str | None,
     reasons: list[dict],
     latency_ms: float,
+    features: dict | None,
+    checks: list[dict],
+    timings: dict,
   ) -> dict:
     return {
       "decision_id": str(decision_id),
@@ -93,8 +111,12 @@ class ScoringService:
         "action": action,
         "hard_rule": rule,
         "reasons": reasons,
+        "features": features,
+        "rules": checks,
+        "timings": timings,
         "latency_ms": latency_ms,
         "model_version": self.scorer.version,
+        "scored_at": datetime.now(timezone.utc).isoformat(),
       },
       "meta": req.meta,
     }

@@ -65,8 +65,11 @@ services/simulator/simulator/
   domain/models.py           accounts, session events, transactions
   settings.py                environment
 
+services/baseline/baseline/  simulated current engine: static rules evaluated in 15-minute batches
+services/simulator/simulator/control/  HTTP service that launches simulator jobs
 ml/shield_ml/                feature definitions (shared with the API) and training
-infra/postgres/init/         schema and the compute_features SQL function
+infra/postgres/init/         schema, compute_features SQL function and comparison view
+infra/grafana/dashboards/    provisioned Grafana dashboard
 ```
 
 ## Running the environment
@@ -77,8 +80,9 @@ infra/postgres/init/         schema and the compute_features SQL function
 cp .env.example .env     # set POSTGRES_HOST/PORT/USER/PASSWORD/DB for your local PostgreSQL
 make db                  # creates the database if missing and (re)applies the schema
 make seed                # generates a labeled synthetic history into PostgreSQL
-make up                  # starts Kafka, Kafka UI, Grafana, the scoring API and the persister
 make train               # trains the model and writes artifacts and config/thresholds.yaml
+make up                  # starts Kafka, Kafka UI, Grafana, the API, the persister and the baseline
+make evaluate            # scores the held-out transactions so both engines can be compared
 ```
 
 The API starts without a model and answers 503 on `/score` until `make train` has run; it picks up new models and config files automatically.
@@ -90,7 +94,8 @@ Grafana and the simulator run with `network_mode: host` so they reach a PostgreS
 | Service | URL / port | Credentials |
 |---------|------------|-------------|
 | Grafana | http://localhost:3000 | `admin` / `GRAFANA_ADMIN_PASSWORD` from `.env` |
-| Scoring API | http://localhost:8000/docs (`POST /score`) | — |
+| Scoring API docs (Swagger) | http://localhost:8000/docs (`POST /score`, `GET /health`) | — |
+| Dashboard | http://localhost:3000/d/yuma-shield | Grafana login |
 | Kafka UI | http://localhost:8080 | — |
 | Kafka (external) | `localhost:29092` | — |
 
@@ -104,6 +109,27 @@ make attack TYPE=sim_swap ARGS="--speedup 60"           # account_takeover | sim
 ```
 
 Attacks run their timeline compressed by `--speedup`, so a scenario that lasts 90 minutes in the history finishes in seconds.
+
+The **baseline** service simulates the current engine as the case describes it: static rules (amount caps per channel, a night-time cap, a daily cumulative cap and a restricted-accounts list that is updated by hand after each incident) reviewed in 15-minute batches, with no behavior or device analysis. Its thresholds live in `config/baseline_rules.yaml` (not versioned) and are calibrated only to the ~92 % false-positive rate stated in the case. It evaluates every stored transaction, so both engines are compared on the same data.
+
+`make evaluate` scores with Yuma Shield only the transactions the model did not see during training.
+
+### Simulator control service
+
+`control` exposes the simulator over HTTP (docs at http://localhost:8001/docs) so seeds, live traffic and attacks can be launched as background jobs, for example from the portal:
+
+| Endpoint | What it does |
+|----------|--------------|
+| `POST /jobs/seed` | Generates a new labeled dataset (replacing the current one), waits for the baseline and scores everything with Yuma Shield. A different `seed` gives data the model has never seen. |
+| `POST /jobs/live` | Sends legitimate traffic to the scoring API. |
+| `POST /jobs/attack` | Launches one fraud scenario. |
+| `GET /jobs`, `GET /jobs/{id}` | Job status and log. |
+
+The scoring API also has `POST /admin/replay` (used by the seed job) at http://localhost:8000/docs.
+
+### What is stored for every decision
+
+Each Yuma Shield decision keeps the 21 feature values, the hard rules evaluated, the score, the reasons, the time spent per stage (features, model, total) and an audit trail (`scored` by the API, `persisted` by the consumer with Kafka topic, partition, offset and lag). Each baseline decision keeps the result of every static rule. This is what allows any transaction to be reconstructed and explained.
 
 Other commands: `make psql` (SQL shell on the project database), `make topics`, `make logs`, `make ps`, `make down`. The `session-events` and `decisions` topics are created automatically.
 

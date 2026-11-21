@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 
 
 def ensure_account(cur, account_id: str, at: str) -> None:
@@ -17,7 +18,7 @@ def save_session_event(cur, event: dict) -> None:
   )
 
 
-def save_decision(cur, message: dict) -> None:
+def save_decision(cur, message: dict, kafka: dict) -> None:
   tx = message["transaction"]
   decision = message["decision"]
   meta = message.get("meta") or {}
@@ -34,12 +35,14 @@ def save_decision(cur, message: dict) -> None:
     ),
   )
   cur.execute(
-    "INSERT INTO decisions (id, transaction_id, score, action, hard_rule, reasons, "
-    "latency_ms, model_version) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
+    "INSERT INTO decisions (id, transaction_id, score, action, hard_rule, reasons, features, "
+    "rules, timings, latency_ms, model_version) "
+    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
     (
       message["decision_id"], tx["id"], decision["score"], decision["action"],
-      decision.get("hard_rule"), json.dumps(decision["reasons"]), decision["latency_ms"],
-      decision["model_version"],
+      decision.get("hard_rule"), json.dumps(decision["reasons"]),
+      json.dumps(decision.get("features")), json.dumps(decision.get("rules")),
+      json.dumps(decision.get("timings")), decision["latency_ms"], decision["model_version"],
     ),
   )
   if decision["action"] == "hold":
@@ -47,8 +50,22 @@ def save_decision(cur, message: dict) -> None:
       "INSERT INTO alerts (decision_id) VALUES (%s) ON CONFLICT DO NOTHING",
       (message["decision_id"],),
     )
-  cur.execute(
-    "INSERT INTO audit_log (entity, entity_id, event, details, actor) "
-    "VALUES ('decision', %s, 'scored', %s, 'api')",
-    (message["decision_id"], json.dumps({"action": decision["action"], "score": decision["score"]})),
-  )
+  persisted_at = datetime.now(timezone.utc)
+  scored_at = datetime.fromisoformat(decision["scored_at"])
+  lag_ms = round((persisted_at - scored_at).total_seconds() * 1000, 1)
+  for event, actor, at, details in (
+    (
+      "scored", "api", scored_at,
+      {"action": decision["action"], "score": decision["score"], "model": decision["model_version"]},
+    ),
+    (
+      "persisted", "persister", persisted_at,
+      {"topic": kafka["topic"], "partition": kafka["partition"], "offset": kafka["offset"],
+       "lag_ms": lag_ms},
+    ),
+  ):
+    cur.execute(
+      "INSERT INTO audit_log (entity, entity_id, event, details, actor, occurred_at) "
+      "VALUES ('decision', %s, %s, %s, %s, %s)",
+      (message["decision_id"], event, json.dumps(details), actor, at),
+    )

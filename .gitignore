@@ -1,6 +1,7 @@
 # Secrets and thresholds must not be published
 .env
 config/rules.yaml
+config/baseline_rules.yaml
 config/thresholds.yaml
 config/*.local.*
 

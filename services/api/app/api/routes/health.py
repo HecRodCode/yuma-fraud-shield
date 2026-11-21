@@ -6,7 +6,7 @@ from app.services.scoring_service import ScoringService
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health")
+@router.get("/health", summary="Service and model status")
 def health(service: ScoringService = Depends(get_scoring_service)) -> dict:
   return {
     "status": "ok",

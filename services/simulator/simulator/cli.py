@@ -1,6 +1,7 @@
 import argparse
 
 from simulator.commands.attack import run_attack
+from simulator.commands.evaluate import run_evaluate
 from simulator.commands.history import run_history
 from simulator.commands.live import run_live
 from simulator.generators.fraud import FRAUD_TYPES
@@ -30,7 +31,22 @@ def build_parser() -> argparse.ArgumentParser:
   attack.add_argument("--seed", type=int, default=None)
   attack.set_defaults(handler=run_attack)
 
+  evaluate = sub.add_parser("evaluate", help="wait for the baseline and score the stored transactions")
+  evaluate.add_argument("--all", action="store_true")
+  evaluate.add_argument("--timeout", type=float, default=900)
+  evaluate.set_defaults(handler=run_evaluate)
+
+  serve = sub.add_parser("serve", help="run the control service")
+  serve.add_argument("--port", type=int, default=8001)
+  serve.set_defaults(handler=run_serve)
+
   return parser
+
+
+def run_serve(args: argparse.Namespace) -> None:
+  import uvicorn
+
+  uvicorn.run("simulator.control.app:app", host="0.0.0.0", port=args.port)
 
 
 def main() -> None:

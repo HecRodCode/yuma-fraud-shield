@@ -110,7 +110,12 @@ def main() -> None:
   version = "xgb-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
   ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
   model.get_booster().save_model(str(ARTIFACTS_DIR / "model.json"))
-  meta = {"version": version, "features": MODEL_COLUMNS, "metrics": metrics}
+  meta = {
+    "version": version,
+    "features": MODEL_COLUMNS,
+    "holdout_start": val["created_at"].iloc[0].isoformat(),
+    "metrics": metrics,
+  }
   (ARTIFACTS_DIR / "meta.json").write_text(json.dumps(meta, indent=2))
   (CONFIG_DIR / "thresholds.yaml").write_text(
     yaml.safe_dump({"score": {"low_max": round(low_max, 5), "high_min": round(high_min, 5)}})

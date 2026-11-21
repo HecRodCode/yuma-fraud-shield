@@ -40,7 +40,11 @@ def main() -> None:
               if msg.topic() == SESSION_TOPIC:
                 save_session_event(cur, payload)
               else:
-                save_decision(cur, payload)
+                save_decision(
+                  cur,
+                  payload,
+                  {"topic": msg.topic(), "partition": msg.partition(), "offset": msg.offset()},
+                )
           except Exception:
             log.exception("failed to persist message from %s", msg.topic())
       consumer.commit(asynchronous=False)

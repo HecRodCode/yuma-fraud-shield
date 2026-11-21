@@ -4,12 +4,13 @@ POSTGRES_PORT ?= 5432
 export PGPASSWORD = $(POSTGRES_PASSWORD)
 PSQL = psql -h $(POSTGRES_HOST) -p $(POSTGRES_PORT) -U $(POSTGRES_USER) -v ON_ERROR_STOP=1
 
-.PHONY: setup db up down logs ps seed train live attack psql topics
+.PHONY: setup db up down logs ps seed train evaluate live attack psql topics
 
 setup:
 	@test -f .env || cp .env.example .env
 	@test -f config/thresholds.yaml || cp config/thresholds.example.yaml config/thresholds.yaml
 	@test -f config/rules.yaml || cp config/rules.example.yaml config/rules.yaml
+	@test -f config/baseline_rules.yaml || cp config/baseline_rules.example.yaml config/baseline_rules.yaml
 
 # Creates the database if missing and (re)applies the schema
 db: setup
@@ -34,6 +35,9 @@ seed:
 
 train:
 	docker compose run --rm --build trainer
+
+evaluate:
+	docker compose run --rm --build replay
 
 live:
 	docker compose run --rm --build simulator live $(ARGS)

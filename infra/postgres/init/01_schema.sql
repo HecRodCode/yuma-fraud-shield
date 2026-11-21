@@ -49,19 +49,27 @@ CREATE TABLE decisions (
     CHECK (action IN ('approve', 'challenge', 'hold')),
   hard_rule TEXT,
   reasons JSONB NOT NULL,
-  latency_ms NUMERIC(8, 2) NOT NULL,
+  features JSONB,
+  rules JSONB,
+  timings JSONB,
+  latency_ms NUMERIC(8, 2),
   model_version TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'live'
+    CHECK (source IN ('live', 'replay')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_decisions_action_time ON decisions (action, created_at DESC);
+CREATE INDEX idx_decisions_source_time ON decisions (source, created_at DESC);
 
 CREATE TABLE baseline_decisions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   transaction_id UUID NOT NULL UNIQUE REFERENCES transactions(id),
   action TEXT NOT NULL
     CHECK (action IN ('approve', 'alert')),
-  rule TEXT
+  rule TEXT,
+  details JSONB,
+  detected_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE TABLE alerts (

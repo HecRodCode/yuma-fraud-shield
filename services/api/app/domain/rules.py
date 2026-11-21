@@ -10,13 +10,17 @@ class Rules:
   restricted_accounts: set[str] = field(default_factory=set)
   amount_caps: dict[str, float] = field(default_factory=dict)
 
-  def check(self, target_account: str, channel: str, amount: float) -> str | None:
-    if target_account in self.restricted_accounts:
-      return "restricted_account"
-    cap = self.amount_caps.get(channel)
-    if cap and amount > cap:
-      return "amount_cap"
-    return None
+  def evaluate(self, target_account: str, channel: str, amount: float) -> list[dict]:
+    cap = self.amount_caps.get(channel, 0)
+    return [
+      {
+        "rule": "restricted_account",
+        "fired": target_account in self.restricted_accounts,
+        "limit": None,
+        "value": None,
+      },
+      {"rule": "amount_cap", "fired": bool(cap and amount > cap), "limit": cap, "value": amount},
+    ]
 
 
 def load_rules() -> Rules:
