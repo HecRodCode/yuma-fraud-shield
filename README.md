@@ -12,6 +12,7 @@ Yuma Pay detecta el fraude cuando el dinero ya salió de la cuenta. Su motor act
 
 Documentación de apoyo:
 
+- [docs/GUIA.html](docs/GUIA.html) — **empieza aquí** (ábrelo en el navegador): qué pasa con una transferencia, qué hace el analista, qué revisa el sistema, un caso real, cómo se levanta y cómo contarlo, con imágenes. Misma guía en texto: [docs/GUIA.md](docs/GUIA.md).
 - [docs/yuma.pdf](docs/yuma.pdf) — enunciado original del reto.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — componentes, vida de una transacción, bandas de decisión, ciclo de retroalimentación, modelo de datos y brechas conocidas (diagramas Mermaid).
 - [loadtest/RESULTS.md](loadtest/RESULTS.md) — prueba de carga a 150 TPS.
@@ -63,6 +64,8 @@ config/                      plantillas de reglas, umbrales y parámetros de la 
 ```
 
 ## Cómo ejecutar el entorno
+
+Para hacerlo todo de una vez: `make setup`, llena `config/baseline_rules.yaml` con los valores de `reglas_vigentes.csv` del paquete del caso y ejecuta `make bootstrap`. Los pasos manuales son estos:
 
 **Requisitos:** Docker con Compose v2, `make`, `psql`, un **PostgreSQL local** con un usuario que pueda crear bases de datos y roles, y el paquete del caso en `docs/Caso_de_estudio_Yuma_Pay/`.
 

@@ -4,7 +4,7 @@ POSTGRES_PORT ?= 5432
 export PGPASSWORD = $(POSTGRES_PASSWORD)
 PSQL = psql -h $(POSTGRES_HOST) -p $(POSTGRES_PORT) -U $(POSTGRES_USER) -v ON_ERROR_STOP=1
 
-.PHONY: setup db up down logs ps load loadtest-data loadtest loadtest-clean sandbox sandbox-run train evaluate live attack psql topics
+.PHONY: bootstrap check-config wait-baseline setup db up down logs ps load loadtest-data loadtest loadtest-clean sandbox sandbox-run train evaluate live attack psql topics
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -17,6 +17,21 @@ db: setup
 	@$(PSQL) -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$(POSTGRES_DB)'" | grep -q 1 \
 		|| $(PSQL) -d postgres -c "CREATE DATABASE $(POSTGRES_DB)"
 	@for f in infra/postgres/init/*.sql; do $(PSQL) -d $(POSTGRES_DB) -q -f $$f || exit 1; done
+
+# Full reproduction from a clean checkout (needs the case package in docs/)
+bootstrap: setup check-config db load up wait-baseline train sandbox sandbox-run
+	@echo "Ready: portal http://localhost:8501, dashboard http://localhost:3000/d/yuma-shield"
+
+check-config:
+	@if cmp -s config/baseline_rules.yaml config/baseline_rules.example.yaml; then \
+		echo "config/baseline_rules.yaml still holds the template (all rules disabled)."; \
+		echo "Fill it with the values of reglas_vigentes.csv from the case package, then run again."; \
+		exit 1; \
+	fi
+
+wait-baseline:
+	@echo "Waiting for the baseline to evaluate the whole history..."
+	@while [ "$$($(PSQL) -d $(POSTGRES_DB) -Atc "SELECT count(*) FROM transactions t WHERE NOT EXISTS (SELECT 1 FROM baseline_decisions b WHERE b.transaction_id = t.id)")" != "0" ]; do sleep 5; done
 
 up: setup
 	docker compose up -d --build

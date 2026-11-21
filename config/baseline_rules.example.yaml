@@ -1,3 +1,4 @@
+# A threshold of 0 disables the rule. Fill the values from the case's reglas_vigentes.csv.
 batch_minutes: 15
 rules:
   R001: {severity: medium, min_amount: 0}

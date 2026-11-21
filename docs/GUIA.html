@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yuma Shield explicado con imágenes</title>
+<style>
+  :root {
+    --ink: #1f2937; --muted: #6b7280; --line: #e5e7eb; --bg: #f8fafc; --card: #ffffff;
+    --shield: #2f6fd1; --shield-soft: #e8f0fc; --old: #d95926; --old-soft: #fdeee8;
+    --ok: #1f9d55; --ok-soft: #e6f6ec; --warn: #b7791f; --warn-soft: #fdf3dc;
+    --bad: #c53030; --bad-soft: #fde8e8; --dark: #7b1d1d; --dark-soft: #f6dcdc;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 20px 80px; }
+  header { padding: 28px 0 8px; }
+  h1 { font-size: 34px; margin: 0 0 6px; }
+  h2 { font-size: 26px; margin: 56px 0 6px; padding-top: 8px; border-top: 3px solid var(--line); }
+  h2 .n { display: inline-block; background: var(--shield); color: #fff; border-radius: 50%; width: 36px; height: 36px; line-height: 36px; text-align: center; font-size: 18px; margin-right: 10px; }
+  h3 { font-size: 18px; margin: 22px 0 8px; }
+  p { margin: 8px 0; }
+  .lead { color: var(--muted); font-size: 18px; margin-bottom: 6px; }
+  .q { font-size: 18px; font-weight: 600; color: var(--shield); margin: 2px 0 14px; }
+  nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+  nav a { text-decoration: none; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; color: var(--ink); font-size: 14px; }
+  nav a:hover { border-color: var(--shield); color: var(--shield); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 220px; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border-radius: 6px; padding: 2px 8px; }
+  .tag.shield { background: var(--shield-soft); color: var(--shield); }
+  .tag.old { background: var(--old-soft); color: var(--old); }
+  .note { border-left: 5px solid var(--warn); background: var(--warn-soft); border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
+  .note.good { border-color: var(--ok); background: var(--ok-soft); }
+  .note.bad { border-color: var(--bad); background: var(--bad-soft); }
+  .note b.big { font-size: 19px; }
+  .muted { color: var(--muted); }
+  small { color: var(--muted); }
+
+  /* timelines */
+  .timeline { display: flex; align-items: stretch; gap: 0; margin: 10px 0 18px; flex-wrap: wrap; }
+  .step { flex: 1 1 140px; padding: 12px 10px; text-align: center; background: var(--card); border: 1px solid var(--line); position: relative; font-size: 14px; }
+  .step:first-child { border-radius: 12px 0 0 12px; }
+  .step:last-child { border-radius: 0 12px 12px 0; }
+  .step b { display: block; font-size: 15px; }
+  .step.bad { background: var(--bad-soft); border-color: #f2b8b8; }
+  .step.ok { background: var(--ok-soft); border-color: #b9e4c9; }
+  .step.shield { background: var(--shield-soft); border-color: #bcd3f5; }
+  .step.old { background: var(--old-soft); border-color: #f4c8b8; }
+  .step .time { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .timeline.col { flex-direction: column; }
+  .timeline.col .step { flex: 0 0 auto; border-radius: 0; text-align: left; padding: 10px 14px; }
+  .timeline.col .step:first-child { border-radius: 10px 10px 0 0; }
+  .timeline.col .step:last-child { border-radius: 0 0 10px 10px; }
+  .arrowrow { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .arrowrow .lbl { width: 150px; font-weight: 700; }
+
+  /* flow */
+  .flow { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 18px 0; }
+  .box { background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 10px 18px; text-align: center; min-width: 260px; }
+  .box.shield { border-color: var(--shield); background: var(--shield-soft); }
+  .down { color: var(--muted); font-size: 22px; line-height: 1; }
+  .branches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; width: 100%; margin-top: 6px; }
+  @media (max-width: 900px) { .branches { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px) { .branches { grid-template-columns: 1fr; } }
+  .out { border-radius: 14px; padding: 14px; border: 2px solid; display: flex; flex-direction: column; gap: 6px; }
+  .out h4 { margin: 0; font-size: 20px; }
+  .out .pct { font-size: 28px; font-weight: 800; line-height: 1; }
+  .out .pct small { font-size: 13px; font-weight: 500; display: block; }
+  .out dl { margin: 0; font-size: 14px; }
+  .out dt { font-weight: 700; margin-top: 6px; }
+  .out dd { margin: 0; }
+  .out.approve { background: var(--ok-soft); border-color: var(--ok); }
+  .out.challenge { background: var(--warn-soft); border-color: #e0a526; }
+  .out.hold { background: var(--bad-soft); border-color: var(--bad); }
+  .out.reject { background: var(--dark-soft); border-color: var(--dark); }
+
+  /* bars */
+  .bars { display: grid; gap: 8px; margin: 10px 0; }
+  .bar { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: 10px; font-size: 14px; }
+  .track { background: #eef2f7; border-radius: 8px; height: 26px; position: relative; overflow: hidden; }
+  .fill { height: 100%; display: flex; align-items: center; padding-left: 8px; color: #fff; font-weight: 700; font-size: 13px; white-space: nowrap; }
+  .fill.shield { background: var(--shield); } .fill.old { background: var(--old); }
+  .fill.seg1 { background: #5b9bf0; } .fill.seg2 { background: #2f6fd1; } .fill.seg3 { background: #9aa7b8; }
+  .stack { display: flex; height: 34px; border-radius: 8px; overflow: hidden; margin: 6px 0; }
+  .stack > div { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700; }
+
+  /* tables and chips */
+  table { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--card); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #f1f5f9; }
+  .chip { display: inline-block; background: #eef2f7; border-radius: 999px; padding: 3px 11px; margin: 3px 4px 3px 0; font-size: 13px; }
+  .chip.up { background: var(--bad-soft); color: var(--bad); }
+  .chips { margin: 6px 0; }
+  code { background: #eef2f7; border-radius: 5px; padding: 1px 6px; font-size: 13px; }
+  pre { background: #111827; color: #e5e7eb; border-radius: 10px; padding: 12px 14px; overflow-x: auto; font-size: 13px; margin: 8px 0; }
+
+  /* mock screen */
+  .screen { border: 2px solid #cbd5e1; border-radius: 12px; overflow: hidden; background: #fff; font-size: 13px; }
+  .screen .bar-top { background: #f1f5f9; padding: 6px 12px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--line); }
+  .screen .body { padding: 12px; }
+  .screen table th, .screen table td { padding: 5px 8px; }
+  .btn { display: inline-block; border-radius: 8px; padding: 6px 14px; font-weight: 700; font-size: 13px; margin-right: 8px; }
+  .btn.red { background: var(--bad); color: #fff; } .btn.gray { background: #e5e7eb; color: var(--ink); }
+  tr.sel td { background: var(--shield-soft); }
+
+  /* groups of data */
+  .groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+  .group h4 { margin: 0 0 4px; }
+  .group ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+  .circle { display: inline-block; width: 26px; height: 26px; line-height: 26px; border-radius: 50%; background: var(--shield); color: #fff; text-align: center; font-weight: 700; font-size: 14px; margin-right: 6px; }
+
+  details { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 8px 0; }
+  summary { cursor: pointer; font-weight: 700; }
+  details p { margin: 8px 0 2px; }
+  .steps { counter-reset: s; display: grid; gap: 10px; }
+  .steps .s { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 12px 56px; position: relative; }
+  .steps .s::before { counter-increment: s; content: counter(s); position: absolute; left: 14px; top: 12px; background: var(--shield); color: #fff; width: 30px; height: 30px; line-height: 30px; border-radius: 50%; text-align: center; font-weight: 700; }
+  .map { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .piece { border-radius: 12px; padding: 12px 14px; border: 1px solid var(--line); background: var(--card); }
+  .piece b { display: block; margin-bottom: 2px; }
+  .piece.dec { border-left: 6px solid var(--shield); } .piece.mem { border-left: 6px solid #6b7280; }
+  .piece.cmp { border-left: 6px solid var(--old); } .piece.lrn { border-left: 6px solid var(--ok); } .piece.tst { border-left: 6px solid #8b5cf6; }
+  footer { margin-top: 60px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Yuma Shield explicado con imágenes</h1>
+  <p class="lead">Qué hace el sistema, qué pasa con cada transferencia, qué papel tiene el analista y cómo se levanta. Sin jerga: cada término se explica donde aparece.</p>
+  <nav>
+    <a href="#problema">1 · El problema</a>
+    <a href="#recorrido">2 · Qué pasa con una transferencia</a>
+    <a href="#tiempo">3 · Los 300 milisegundos</a>
+    <a href="#revisa">4 · Qué revisa</a>
+    <a href="#analista">5 · El analista</a>
+    <a href="#caso">6 · Un caso real</a>
+    <a href="#resultados">7 · Resultados</a>
+    <a href="#piezas">8 · Las piezas</a>
+    <a href="#levantar">9 · Cómo se levanta</a>
+    <a href="#contar">10 · Cómo contarlo</a>
+  </nav>
+</header>
+
+<!-- 1 -->
+<h2 id="problema"><span class="n">1</span>El problema que resolvemos</h2>
+<p class="q">¿Por qué el motor actual de Yuma Pay no alcanza?</p>
+<p>Una transferencia inmediata se completa en segundos y <b>no se puede reversar</b>. El motor actual revisa las operaciones <b>por lotes cada 15 minutos</b>, así que cuando avisa, el dinero ya no está.</p>
+
+<div class="arrowrow"><span class="lbl"><span class="tag old">Hoy</span></span></div>
+<div class="timeline">
+  <div class="step"><b>El cliente confirma</b>la transferencia<span class="time">00:00</span></div>
+  <div class="step bad"><b>El dinero sale</b>ya no se puede devolver<span class="time">unos segundos después</span></div>
+  <div class="step old"><b>El motor revisa</b>en su lote de 15 minutos<span class="time">hasta 15 min después</span></div>
+  <div class="step bad"><b>Alerta tardía</b>y la mayoría son falsas<span class="time">~92 % son falsos positivos</span></div>
+</div>
+
+<div class="arrowrow"><span class="lbl"><span class="tag shield">Con Yuma Shield</span></span></div>
+<div class="timeline">
+  <div class="step"><b>El cliente confirma</b>la transferencia<span class="time">00:00</span></div>
+  <div class="step shield"><b>Shield decide</b>antes de autorizar<span class="time">≈ 0,02 segundos</span></div>
+  <div class="step ok"><b>Solo sale lo aprobado</b>lo dudoso se frena<span class="time">el dinero no se mueve</span></div>
+  <div class="step shield"><b>Un analista revisa</b>solo los casos frenados<span class="time">pocos y explicados</span></div>
+</div>
+
+<div class="note"><b>Falso positivo</b> = una operación legítima que el sistema marcó como sospechosa. Cada una molesta a un cliente real y le quita tiempo a un analista. Reducirlos es tan importante como detectar el fraude.</div>
+
+<!-- 2 -->
+<h2 id="recorrido"><span class="n">2</span>Qué pasa cuando alguien hace una transferencia</h2>
+<p class="q">¿La operación se queda esperando a que un analista la apruebe?</p>
+<div class="note good"><b class="big">No.</b> La decisión la toma <b>el sistema solo, en milisegundos</b>. Un analista interviene <b>únicamente</b> en los casos que el sistema frena (cerca del 1,5 % de las operaciones), y para esos el dinero simplemente no sale mientras tanto. El 96 % de las operaciones pasa sin que nadie lo note.</div>
+
+<div class="flow">
+  <div class="box">📱 El cliente confirma una operación en la app</div>
+  <div class="down">▼</div>
+  <div class="box shield"><b>Yuma Shield la revisa</b><br><small>menos de 300 milisegundos, sin ninguna persona de por medio</small></div>
+  <div class="down">▼ &nbsp;responde una de cuatro cosas&nbsp; ▼</div>
+  <div class="branches">
+    <div class="out approve">
+      <h4>✅ Aprobar</h4>
+      <div class="pct">96,2 %<small>de las operaciones de octubre</small></div>
+      <dl>
+        <dt>El cliente ve</dt><dd>Nada: la operación se completa.</dd>
+        <dt>El dinero</dt><dd>Sale normalmente.</dd>
+        <dt>Quién interviene</dt><dd>Nadie.</dd>
+      </dl>
+    </div>
+    <div class="out challenge">
+      <h4>🔐 Desafiar</h4>
+      <div class="pct">2,4 %<small>de las operaciones</small></div>
+      <dl>
+        <dt>El cliente ve</dt><dd>La app le pide una verificación extra (por ejemplo, biometría o un código).</dd>
+        <dt>El dinero</dt><dd>Sale si el cliente la supera; si no, el caso pasa a un analista.</dd>
+        <dt>Quién interviene</dt><dd>El propio cliente, en segundos.</dd>
+      </dl>
+    </div>
+    <div class="out hold">
+      <h4>⏸️ Retener</h4>
+      <div class="pct">0,4 %<small>de las operaciones</small></div>
+      <dl>
+        <dt>El cliente ve</dt><dd>Un aviso: "estamos verificando tu operación".</dd>
+        <dt>El dinero</dt><dd><b>No sale</b> mientras se revisa.</dd>
+        <dt>Quién interviene</dt><dd>Un analista, que confirma con el cliente.</dd>
+      </dl>
+    </div>
+    <div class="out reject">
+      <h4>⛔ Rechazar</h4>
+      <div class="pct">1,1 %<small>de las operaciones</small></div>
+      <dl>
+        <dt>El cliente ve</dt><dd>La operación no se realiza.</dd>
+        <dt>El dinero</dt><dd><b>No sale.</b></dd>
+        <dt>Quién interviene</dt><dd>Un analista revisa el caso después.</dd>
+      </dl>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="card">
+    <h3 style="margin-top:0">¿Cuál es la diferencia entre retener y rechazar?</h3>
+    <p><b>Retener</b>: el sistema tiene sospechas pero no está seguro, y deja la operación en pausa. <b>Rechazar</b>: está casi seguro de que es fraude y la niega. En ambos casos el dinero no sale y se abre un caso para un analista.</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">¿Y si el sistema se equivoca con un cliente real?</h3>
+    <p>El analista lo contacta, confirma que es legítimo y <b>libera</b> la operación. Es un costo real: ese cliente espera la revisión. Por eso el sistema busca frenar muy pocos legítimos: en octubre fue el <b>0,4 %</b> de los legítimos.</p>
+  </div>
+</div>
+
+<div class="note"><b>Qué construimos y qué no.</b> El prototipo toma la decisión, abre el caso y registra el veredicto del analista. Completar de nuevo una operación liberada, o pedir de verdad la biometría, le corresponde al sistema central de pagos de Yuma, que no es parte de este proyecto.</div>
+
+<!-- 3 -->
+<h2 id="tiempo"><span class="n">3</span>Los 300 milisegundos: cómo se logra</h2>
+<p class="q">¿Cómo decide tan rápido?</p>
+<p>Porque en esos milisegundos <b>no hay personas ni llamadas lentas</b>. Solo se hace lo estrictamente necesario para decidir. Todo lo demás (guardar, auditar, comparar) ocurre <b>después</b> de responder.</p>
+
+<div class="row">
+  <div class="card">
+    <h3 style="margin-top:0">⏱️ Antes de responder</h3>
+    <p class="muted">Lo único que hace esperar al cliente</p>
+    <div class="stack">
+      <div style="width:38%;background:#5b9bf0">historial 1,5 ms</div>
+      <div style="width:62%;background:#2f6fd1">modelo 2,5 ms</div>
+    </div>
+    <small>Tiempos medios medidos. Revisar los filtros y armar las razones toma menos de 0,1 ms.</small>
+    <ol>
+      <li>Revisa los <b>filtros automáticos</b> (sección 4).</li>
+      <li>Lee el <b>historial del cliente</b> en la base de datos (≈ 1,5 ms): ya está ordenado para encontrarlo al instante.</li>
+      <li>El <b>modelo</b> calcula el puntaje (≈ 2,5 ms).</li>
+      <li>Convierte el puntaje en una decisión y arma las razones.</li>
+    </ol>
+    <p><b>Total típico: 4–6 ms.</b> Incluso en la transacción más lenta del ejemplo de la sección 6 fueron 20 ms.</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">🗂️ Después de responder</h3>
+    <p class="muted">Sin hacer esperar a nadie</p>
+    <ol>
+      <li>La decisión se publica en un canal de mensajes (<b>Kafka</b>).</li>
+      <li>Otro programa (el <b>persister</b>) la guarda en la base de datos, con todo lo que se miró.</li>
+      <li>Se anota en el <b>registro de auditoría</b>, que no permite borrar ni modificar.</li>
+      <li>El motor actual (la línea base) la evalúa en su lote.</li>
+    </ol>
+    <p>Así guardar nunca retrasa la respuesta, y se puede medir cuánto tarda cada paso.</p>
+  </div>
+</div>
+
+<div class="bars">
+  <div class="bar"><span>Meta del reto</span><div class="track"><div class="fill old" style="width:100%">300 ms</div></div></div>
+  <div class="bar"><span>Respuesta de Shield (p95)</span><div class="track"><div class="fill shield" style="width:3.5%;min-width:62px">10 ms</div></div></div>
+</div>
+<p><small>Medido con 150 transacciones por segundo sostenidas durante 60 segundos y un pico de 200: 15.499 operaciones, 0 errores.</small></p>
+
+<!-- 4 -->
+<h2 id="revisa"><span class="n">4</span>Qué revisa Yuma Shield</h2>
+<p class="q">¿Qué son las "reglas duras" y qué mira el modelo?</p>
+<p>La revisión tiene <b>dos capas</b>, siempre en este orden:</p>
+
+<div class="flow">
+  <div class="box">Llega la operación</div>
+  <div class="down">▼</div>
+  <div class="box" style="border-color:var(--bad)"><b>Capa 1 · Reglas duras</b><br><small>filtros automáticos que no necesitan el modelo</small></div>
+  <div class="down">▼ si no salta ninguno ▼</div>
+  <div class="box shield"><b>Capa 2 · El modelo</b><br><small>analiza 46 datos del pasado y da un puntaje de 0 a 1</small></div>
+</div>
+
+<h3>Capa 1 · Las reglas duras</h3>
+<p>Son <b>reglas fijas de "esto nunca debe pasar"</b>. Si saltan, se decide al instante y ni siquiera se consulta al modelo. Hay dos:</p>
+<table>
+  <tr><th>Regla dura</th><th>Qué comprueba</th><th>Decisión</th><th>Ejemplo</th></tr>
+  <tr><td><b>Destino restringido</b></td><td>¿El dinero va hacia una cuenta de una lista de cuentas reportadas (por fraude o por autoridades)?</td><td><span class="tag" style="background:var(--dark-soft);color:var(--dark)">Rechazar</span></td><td>Una transferencia a una cuenta que está en la lista. <small>(En el prototipo la lista está vacía: no tenemos una real.)</small></td></tr>
+  <tr><td><b>Tope de monto</b></td><td>¿El monto supera el máximo permitido para ese tipo de operación?</td><td><span class="tag" style="background:var(--bad-soft);color:var(--bad)">Retener</span></td><td>Un retiro en cajero por encima del tope. En octubre se activó <b>2 veces</b>: retiros de COP 5,3 y 6,9 millones.</td></tr>
+</table>
+<p><small>Los topes se definen en un archivo de configuración que no se publica (el reto prohíbe publicar reglas y umbrales).</small></p>
+
+<h3>Capa 2 · El modelo: 46 datos agrupados en 5 temas</h3>
+<p>Todos son datos <b>anteriores</b> a la operación. Nunca se mira nada del futuro.</p>
+<div class="groups">
+  <div class="card group"><h4><span class="circle">1</span>La operación</h4><ul><li>Monto y qué porcentaje del saldo es</li><li>Tipo: transferencia, QR, retiro, recarga...</li><li>Hora y día de la semana</li></ul></div>
+  <div class="card group"><h4><span class="circle">2</span>El dispositivo y la sesión</h4><ul><li>¿Es un dispositivo nuevo? ¿Hace cuánto se vio?</li><li>Inicios de sesión fallidos en 24 horas</li><li>Cambio de clave o de SIM recientes</li><li>Conexión desde fuera de su zona habitual</li></ul></div>
+  <div class="card group"><h4><span class="circle">3</span>El hábito del cliente</h4><ul><li>Cuántas operaciones hizo en 10 min y en 1 hora</li><li>Su monto promedio de los últimos 30 días</li><li>Cuánto movió en las últimas 24 horas</li></ul></div>
+  <div class="card group"><h4><span class="circle">4</span>El destino</h4><ul><li>¿Es la primera vez que le paga?</li><li>¿Cuántos clientes distintos le pagaron en la última hora?</li><li>Qué antigüedad tiene la cuenta destino</li></ul></div>
+  <div class="card group"><h4><span class="circle">5</span>El dinero que el cliente recibió</h4><ul><li>Cuánto recibió en 24 horas</li><li>De cuántas personas distintas<br><small>(señal típica de las cuentas "mula")</small></li></ul></div>
+  <div class="card group" style="border-color:var(--bad)"><h4>🚫 Lo que NO mira</h4><ul><li>Departamento del cliente</li><li>Edad</li><li>Ingresos</li><li>Si la operación fue fraude (esa etiqueta solo se usa para entrenar y medir)</li></ul></div>
+</div>
+
+<h3>La salida: un puntaje y las razones</h3>
+<p>El modelo devuelve un número de 0 a 1 (probabilidad de fraude). Según el número, se elige la decisión:</p>
+<div class="stack" style="height:40px">
+  <div style="width:55%;background:var(--ok)">Aprobar</div>
+  <div style="width:15%;background:#e0a526">Desafiar</div>
+  <div style="width:15%;background:var(--bad)">Retener</div>
+  <div style="width:15%;background:var(--dark)">Rechazar</div>
+</div>
+<p style="display:flex;justify-content:space-between;margin-top:2px"><small>puntaje bajo (parece normal)</small><small>proporciones ilustrativas</small><small>puntaje alto (casi seguro fraude)</small></p>
+<p>Además, el sistema explica <b>qué datos pesaron más</b> y los escribe en lenguaje claro:</p>
+<div class="chips">
+  <span class="chip up">▲ Primera operación a este destino en 180 días</span>
+  <span class="chip up">▲ 3 inicios de sesión fallidos en 24 horas</span>
+  <span class="chip up">▲ Dispositivo registrado hace 14 minutos</span>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0"><span class="tag old">Comparación</span> El motor actual: 12 reglas fijas</h3>
+  <p>Cada regla mira, sobre todo, <b>un monto aislado</b>. Estas son sus reglas:</p>
+  <div class="chips">
+    <span class="chip">R001 Transferencia de monto alto</span><span class="chip">R002 Dispositivo nuevo</span><span class="chip">R003 Operación de madrugada</span>
+    <span class="chip">R004 Velocidad de salidas</span><span class="chip">R005 Vaciado de saldo a destino nuevo</span><span class="chip">R006 Cambio de clave reciente</span>
+    <span class="chip">R007 Cambio de SIM reciente</span><span class="chip">R008 Cuenta reciente con retiros</span><span class="chip">R009 Ubicación atípica</span>
+    <span class="chip">R010 Acumulado diario</span><span class="chip">R011 Pago QR de monto alto</span><span class="chip">R012 Retiro de monto alto</span>
+  </div>
+  <p>Casi todas necesitan <b>además</b> que el monto supere un mínimo. Un fraude de monto moderado, aunque venga con dispositivo nuevo y clave cambiada, puede no activar ninguna. El modelo, en cambio, mira la <b>secuencia completa</b>.</p>
+</div>
+
+<!-- 5 -->
+<h2 id="analista"><span class="n">5</span>El analista: quién es y qué hace</h2>
+<p class="q">¿Cuándo entra una persona y para qué?</p>
+<div class="row">
+  <div class="card">
+    <h3 style="margin-top:0">👤 Quién es</h3>
+    <p>Una persona del equipo de Prevención de Fraude. Hoy Yuma tiene <b>12 analistas</b> para unas <b>4.000 alertas diarias</b>, y solo alcanzan a revisar una de cada tres.</p>
+    <h3>🎯 Qué decide</h3>
+    <ul>
+      <li><b>Confirma fraude</b> o <b>libera</b> la operación frenada.</li>
+      <li>Es la <b>única</b> figura que puede decidir el bloqueo definitivo de una cuenta. El sistema nunca la cierra solo.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">🔄 Qué pasa con cada caso</h3>
+    <div class="timeline col">
+      <div class="step"><b>1 · Shield frena</b>retiene o rechaza y abre el caso</div>
+      <div class="step"><b>2 · Llega a la cola</b>ordenada del más al menos riesgoso</div>
+      <div class="step"><b>3 · El analista revisa</b>lee las razones y confirma con el cliente</div>
+      <div class="step"><b>4 · Veredicto</b>fraude confirmado o liberada</div>
+      <div class="step shield"><b>5 · Se aprende</b>el veredicto queda guardado y mejora al modelo</div>
+    </div>
+  </div>
+</div>
+
+<h3>Lo que ve en el portal (pantalla "Analyst queue")</h3>
+<div class="screen">
+  <div class="bar-top">localhost:8501 · Analyst queue</div>
+  <div class="body">
+    <table>
+      <tr><th>Riesgo</th><th>Decisión</th><th>Cliente</th><th>Operación</th><th>Monto (COP)</th></tr>
+      <tr class="sel"><td><b>1,00</b></td><td>rechazar</td><td>C03356</td><td>transferencia inmediata</td><td>132.300</td></tr>
+      <tr><td>0,97</td><td>rechazar</td><td>C01482</td><td>retiro en cajero</td><td>2.450.000</td></tr>
+      <tr><td>0,88</td><td>retener</td><td>C04077</td><td>pago QR</td><td>86.500</td></tr>
+    </table>
+    <p style="margin:10px 0 4px"><b>Por qué se frenó:</b> ▲ primera operación a este destino en 180 días · ▲ 3 inicios de sesión fallidos en 24 horas · ▲ dispositivo registrado hace 14 minutos</p>
+    <span class="btn red">Confirmar fraude</span><span class="btn gray">Liberar (falso positivo)</span>
+  </div>
+</div>
+<p><small>Ilustración con datos de ejemplo. El analista nunca tiene que adivinar: cada caso trae sus razones.</small></p>
+
+<h3>La carga del analista en octubre</h3>
+<div class="bars">
+  <div class="bar"><span><span class="tag old">Motor actual</span></span><div class="track"><div class="fill old" style="width:100%">1.743 alertas · solo 8 de cada 100 eran fraude</div></div></div>
+  <div class="bar"><span><span class="tag shield">Yuma Shield</span></span><div class="track"><div class="fill shield" style="width:18%;min-width:300px">315 casos · 73 de cada 100 eran fraude</div></div></div>
+</div>
+<p>Es decir: unas <b>5,5 veces menos trabajo</b>, y casi todo lo que llega al analista vale la pena.</p>
+
+<!-- 6 -->
+<h2 id="caso"><span class="n">6</span>Un caso real, minuto a minuto</h2>
+<p class="q">Transacción <code>T00117063</code> de octubre. Puedes abrirla en el portal: <i>Explorer → buscar T00117063</i>.</p>
+<div class="timeline">
+  <div class="step bad"><b>Antes de operar</b>3 inicios de sesión fallidos<span class="time">últimas 24 h</span></div>
+  <div class="step bad"><b>≈ 21:56–22:00</b>se registra un dispositivo nuevo<span class="time">hace 14–18 min</span></div>
+  <div class="step bad"><b>≈ 22:06</b>cambian la clave<span class="time">hace 8 min</span></div>
+  <div class="step bad"><b>22:14</b>transfieren COP 132.300 (63 % del saldo) a una cuenta Yuma nueva<span class="time">conexión desde otra zona</span></div>
+</div>
+<div class="row">
+  <div class="card" style="border-color:var(--old)">
+    <span class="tag old">Motor actual</span>
+    <h3 style="margin:8px 0">❌ No alerta</h3>
+    <p>Ninguna de sus 12 reglas se activa: el monto queda por debajo de los mínimos de las reglas de dispositivo nuevo y de cambio de clave. La operación se autoriza y el fraude se completa.</p>
+  </div>
+  <div class="card" style="border-color:var(--shield)">
+    <span class="tag shield">Yuma Shield</span>
+    <h3 style="margin:8px 0">⛔ Rechaza (puntaje 1,00) en ≈ 20 ms</h3>
+    <div class="chips">
+      <span class="chip up">▲ Primera operación a este destino en 180 días</span>
+      <span class="chip up">▲ 3 inicios de sesión fallidos en 24 horas</span>
+      <span class="chip up">▲ Dispositivo registrado hace 14 minutos</span>
+    </div>
+    <p>El dinero no sale y el caso llega a un analista con estas tres razones.</p>
+  </div>
+</div>
+<div class="note good"><b>Lo importante:</b> ninguna señal por sí sola era concluyente. Lo que delata el fraude es la <b>secuencia</b>: fallos de sesión → dispositivo nuevo → cambio de clave → transferencia a un destino nuevo. En octubre hubo 244 fraudes; en <b>105</b> de ellos (43 %) el motor actual no dijo nada y Yuma Shield sí.</div>
+
+<!-- 7 -->
+<h2 id="resultados"><span class="n">7</span>Los resultados</h2>
+<p class="q">¿Funciona mejor que el motor actual?</p>
+<p>Comparación sobre las <b>mismas 21.600 operaciones de octubre</b>, un mes que el modelo nunca vio al entrenar ni al ajustar. Los indicadores los calcula el sandbox oficial del reto.</p>
+<div class="bars">
+  <div class="bar"><span><b>Fraude detectado</b><br><small>más es mejor</small></span>
+    <div>
+      <div class="track" style="margin-bottom:4px"><div class="fill shield" style="width:98.8%">Yuma Shield 98,8 %</div></div>
+      <div class="track"><div class="fill old" style="width:56.1%">Motor actual 56,1 %</div></div>
+    </div></div>
+  <div class="bar"><span><b>Falsos positivos</b><br><small>menos es mejor · meta &lt; 60 %</small></span>
+    <div>
+      <div class="track" style="margin-bottom:4px"><div class="fill shield" style="width:25.9%;min-width:160px">Yuma Shield 25,9 %</div></div>
+      <div class="track"><div class="fill old" style="width:92.1%">Motor actual 92,1 %</div></div>
+    </div></div>
+</div>
+<div class="row">
+  <div class="card"><b>0,4 %</b><br>de los clientes legítimos fueron frenados (retener o rechazar).</div>
+  <div class="card"><b>2,3 %</b><br>de los legítimos tuvieron que pasar una verificación extra.</div>
+  <div class="card"><b>15.499 de 15.499</b><br>decisiones guardadas durante la prueba de carga, sin pérdida.</div>
+</div>
+<p><small>El motor actual en octubre: 56,1 % del fraude y 92,1 % de falsos positivos. En la muestra completa de seis meses: 62,6 % y 89,0 %.</small></p>
+<div class="note bad"><b>Para decirlo con honestidad.</b> Los datos son sintéticos y la muestra tiene 1,41 % de fraude, mientras que en la realidad es cerca de 0,01 %. Con tan poco fraude real, los falsos positivos subirían mucho para <b>cualquier</b> motor, también el actual. Estas cifras demuestran que la arquitectura funciona y que el enfoque es viable, no que el modelo se comporte igual con datos reales.</div>
+
+<!-- 8 -->
+<h2 id="piezas"><span class="n">8</span>Las piezas del sistema</h2>
+<p class="q">¿Para qué sirve cada cosa?</p>
+<div class="map">
+  <div class="piece dec"><b>🚪 API de scoring</b>Recibe la operación y devuelve la decisión. Es la única pieza dentro de los 300 ms.<br><small>Verla: localhost:8000/docs</small></div>
+  <div class="piece dec"><b>🧠 El modelo</b>Calcula el puntaje y explica qué datos pesaron.<br><small>Verlo: portal → Control</small></div>
+  <div class="piece mem"><b>🗄️ PostgreSQL</b>La memoria: historial de clientes, decisiones, alertas, auditoría y versiones del modelo.<br><small>Verlo: portal → Explorer</small></div>
+  <div class="piece mem"><b>📨 Kafka + persister</b>Canal de mensajes y el programa que guarda las decisiones sin hacer esperar al cliente.<br><small>Verlo: localhost:8080</small></div>
+  <div class="piece cmp"><b>🕰️ Motor actual (baseline)</b>Reproduce las 12 reglas vigentes para tener contra qué comparar.<br><small>Verlo: Explorer → pestaña Current engine</small></div>
+  <div class="piece cmp"><b>📊 Portal y Grafana</b>Pantallas para comparar, explorar una operación, trabajar la cola y controlar la demo.<br><small>localhost:8501 y localhost:3000</small></div>
+  <div class="piece lrn"><b>🎓 Entrenamiento</b>Enseña al modelo con mayo–agosto, ajusta con septiembre y se evalúa en octubre. Revisa que no discrimine.<br><small>Verlo: portal → Control</small></div>
+  <div class="piece lrn"><b>🛡️ Compuerta de promoción</b>Un modelo nuevo solo se activa si no empeora el actual. Se puede volver atrás.<br><small>Verlo: portal → Control → versiones</small></div>
+  <div class="piece tst"><b>🧪 Sandbox del caso</b>La API oficial del reto: entrega operaciones, recibe decisiones y calcula los indicadores.<br><small>localhost:8090/v1/metricas</small></div>
+  <div class="piece tst"><b>🎭 Simulador</b>Lanza tráfico normal y 5 tipos de ataque sobre clientes reales para la demo.<br><small>portal → Control → Launch</small></div>
+  <div class="piece tst"><b>🏋️ Prueba de carga (k6)</b>Demuestra los 150 transacciones por segundo.<br><small>make loadtest</small></div>
+</div>
+
+<!-- 9 -->
+<h2 id="levantar"><span class="n">9</span>Cómo se levanta el proyecto</h2>
+<p class="q">¿Cómo lo reproduzco desde cero?</p>
+<div class="card">
+  <b>Necesitas:</b> Linux con Docker, <code>make</code> y <code>psql</code> · un PostgreSQL local con un usuario que pueda crear bases · el paquete del caso copiado en <code>docs/Caso_de_estudio_Yuma_Pay/</code> · los puertos 8000, 8001, 8080, 8090, 8501, 3000 y 29092 libres.
+</div>
+<div class="note"><b>Camino rápido.</b> Copia <code>.env.example</code> a <code>.env</code> y ajusta tu base de datos; ejecuta <code>make setup</code>; llena <code>config/baseline_rules.yaml</code> con los valores de <code>reglas_vigentes.csv</code>; y ejecuta <code>make bootstrap</code>. Hace todos los pasos de abajo, en orden (unos 15 minutos).</div>
+<div class="steps">
+  <div class="s"><b>Crear la base</b> · <code>make db</code><br><small>Crea las tablas. Debe terminar sin errores.</small></div>
+  <div class="s"><b>Cargar los datos del caso</b> · <code>make load</code> (~1 min)<br><small>Verás: customers 6000 · session_events 48281 · transactions 120972 · legacy_rules 12 · legacy_alerts 9687.</small></div>
+  <div class="s"><b>Levantar los servicios</b> · <code>make up</code> (3–5 min la primera vez)<br><small>Con <code>make ps</code> todos deben estar en "Up".</small></div>
+  <div class="s"><b>Esperar al motor actual</b> (~3 min)<br><small>Evalúa las 120.972 operaciones. Debe dar 9.687 alertas, igual que el caso.</small></div>
+  <div class="s"><b>Entrenar el modelo</b> · <code>make train</code> (~3 min)<br><small>Verás "gate passed: True" y fraude detectado ≈ 98,8 %.</small></div>
+  <div class="s"><b>Levantar el sandbox</b> · <code>make sandbox</code><br><small>localhost:8090/v1/salud debe responder "ok".</small></div>
+  <div class="s"><b>Evaluar octubre con el sandbox</b> · <code>make sandbox-run ARGS="--reset"</code> (~2 min)<br><small>Resultado: 21.600 operaciones decididas y falsos positivos ≈ 26 %.</small></div>
+</div>
+<p>Cuando termine, abre el <b>portal</b> en <code>localhost:8501</code>.</p>
+<details><summary>Si algo falla</summary>
+  <table>
+    <tr><th>Síntoma</th><th>Qué hacer</th></tr>
+    <tr><td>"password authentication failed"</td><td>Revisa usuario y clave de PostgreSQL en <code>.env</code>.</td></tr>
+    <tr><td>Puerto ocupado</td><td>Cámbialo en <code>.env</code> (el 5432 suele estar ocupado si tienes otro PostgreSQL).</td></tr>
+    <tr><td><code>/score</code> responde 503</td><td>Falta entrenar: ejecuta <code>make train</code>.</td></tr>
+    <tr><td>El motor actual alerta todo o nada</td><td><code>config/baseline_rules.yaml</code> está vacío o mal llenado.</td></tr>
+    <tr><td>No funciona en Mac o Windows</td><td>Los servicios usan la red del equipo, que solo funciona bien en Linux.</td></tr>
+  </table>
+  <p>Para ver qué pasa por dentro: <code>make logs</code>. Para borrar todo y empezar de cero: <code>make db</code>.</p>
+</details>
+
+<!-- 10 -->
+<h2 id="contar"><span class="n">10</span>Cómo contarlo</h2>
+<h3>En 30 segundos</h3>
+<div class="card"><p style="font-size:18px;margin:0">"Yuma Pay se entera del fraude cuando el dinero ya salió. <b>Yuma Shield decide antes</b>, en menos de 300 milisegundos, mirando el comportamiento del cliente y su dispositivo, y <b>explica cada decisión</b>. En el mes de prueba detecta casi todo el fraude con una cuarta parte de falsos positivos, frente a casi el 90 % del motor actual. Y los casos dudosos los decide siempre una persona."</p></div>
+
+<h3>En 5 minutos</h3>
+<div class="timeline">
+  <div class="step shield"><b>1 · El problema</b>92 % de falsos positivos, 15 minutos de retraso<span class="time">1 min</span></div>
+  <div class="step shield"><b>2 · La idea</b>un portero antes de la puerta con 4 respuestas<span class="time">1 min</span></div>
+  <div class="step shield"><b>3 · La demo</b>una operación explicada, un ataque, la cola del analista<span class="time">1,5 min</span></div>
+  <div class="step shield"><b>4 · La evidencia</b>resultados y prueba de carga<span class="time">1 min</span></div>
+  <div class="step shield"><b>5 · Honestidad</b>límites y siguientes pasos<span class="time">0,5 min</span></div>
+</div>
+
+<h3>Preguntas que pueden hacer</h3>
+<details><summary>¿Por qué los números son tan buenos?</summary><p>Los datos son sintéticos y los patrones de fraude son claros. Se evaluó en un mes que el modelo no vio, pero eso no garantiza el mismo resultado con fraude real.</p></details>
+<details><summary>¿Por qué el motor actual detecta menos?</summary><p>Sus reglas miran el monto de una operación aislada. Mucho fraude es de montos moderados y lo delata la secuencia (fallos de sesión, dispositivo nuevo, cambio de clave, destino nuevo), que un tope no ve.</p></details>
+<details><summary>¿La operación espera al analista?</summary><p>No. El sistema decide solo en milisegundos. El analista solo recibe los casos frenados (≈ 1,5 %), y para ellos el dinero no sale mientras tanto.</p></details>
+<details><summary>¿Cómo se asegura de no discriminar?</summary><p>El modelo no recibe departamento, edad ni ingresos, y se audita el trato por grupo. Un punto a vigilar es la señal de "conexión fuera de la zona habitual", que compara con la zona del propio cliente y no con una región concreta.</p></details>
+<details><summary>¿Se puede auditar una decisión?</summary><p>Sí. Para cada una queda guardado qué datos se miraron, qué reglas se evaluaron, las razones, cuánto tardó cada paso, qué modelo la tomó y un registro que no permite modificaciones.</p></details>
+<details><summary>¿Y si el modelo se equivoca?</summary><p>El cliente pasa una verificación extra o un analista lo revisa y lo libera. El sistema nunca cierra una cuenta por sí solo.</p></details>
+<details><summary>¿Está cifrado?</summary><p>No todavía. Es una brecha declarada: el prototipo usa conexiones sin cifrar. En producción serían conexiones cifradas entre servicios y almacenamiento cifrado.</p></details>
+<details><summary>¿Escala a 1,8 millones de operaciones al día?</summary><p>Son unas 21 por segundo de media, con picos de 150. Probamos 150 sostenidas y 200 de pico en un solo equipo sin saturar. La pieza a vigilar es la base de datos, que se escalaría con réplicas.</p></details>
+<details><summary>¿El feedback del analista mejora el modelo?</summary><p>El mecanismo funciona de punta a punta. En una prueba con ataques simulados, el modelo reentrenado aprendió lo que se le enseñó pero empeoró la precisión general, y la compuerta de promoción lo rechazó. Con fraude real, el feedback vendría de la misma distribución que se evalúa.</p></details>
+
+<h3>Palabras que van a aparecer</h3>
+<details><summary>Glosario</summary>
+  <table>
+    <tr><td><b>Falso positivo</b></td><td>Operación legítima que el sistema marcó como sospechosa.</td></tr>
+    <tr><td><b>Puntaje</b></td><td>Número de 0 a 1 que estima la probabilidad de fraude.</td></tr>
+    <tr><td><b>Modelo</b></td><td>Programa que aprendió, de miles de casos pasados, qué combinación de datos suele ser fraude.</td></tr>
+    <tr><td><b>Razones (SHAP)</b></td><td>La técnica que mide cuánto pesó cada dato en una decisión, para poder explicarla.</td></tr>
+    <tr><td><b>Línea base / motor actual</b></td><td>Las 12 reglas vigentes de Yuma Pay, contra las que se compara.</td></tr>
+    <tr><td><b>Sandbox</b></td><td>API de pruebas oficial del reto: entrega operaciones y calcula los indicadores.</td></tr>
+    <tr><td><b>Cuenta mula</b></td><td>Cuenta que recibe dinero robado y lo saca rápido.</td></tr>
+    <tr><td><b>Toma de cuenta</b></td><td>El delincuente roba la clave y vacía la cuenta desde otro dispositivo.</td></tr>
+    <tr><td><b>SIM swap</b></td><td>Duplican la SIM de la víctima para recibir sus códigos de verificación.</td></tr>
+    <tr><td><b>TPS</b></td><td>Transacciones por segundo.</td></tr>
+    <tr><td><b>p95</b></td><td>El 95 % de las respuestas fue igual o más rápido que ese valor.</td></tr>
+    <tr><td><b>Compuerta de promoción</b></td><td>Control que impide activar un modelo nuevo si es peor que el actual.</td></tr>
+  </table>
+</details>
+
+<footer>
+  <p>Este documento es la versión visual de <code>docs/GUIA.md</code>. Detalle técnico: <code>docs/ARCHITECTURE.md</code>. Resultados de la prueba de carga: <code>loadtest/RESULTS.md</code>.</p>
+  <p>Los casos, cifras y datos de Yuma Pay son ficticios y se usan solo con fines educativos. Las cifras de octubre vienen del sandbox oficial y de las tablas del propio sistema.</p>
+</footer>
+
+</main>
+</body>
+</html>

@@ -6,6 +6,11 @@ import yaml
 OUTFLOWS = ("instant_transfer", "correspondent_withdrawal", "atm_withdrawal")
 WITHDRAWALS = ("correspondent_withdrawal", "atm_withdrawal")
 SEVERITY_ORDER = {"low": 0, "medium": 1, "high": 2}
+MAIN_THRESHOLD = {
+  "R001": "min_amount", "R002": "min_amount", "R003": "min_amount", "R004": "min_outflows_60m",
+  "R005": "min_balance_ratio", "R006": "min_amount", "R007": "min_amount", "R008": "min_amount",
+  "R009": "min_amount", "R010": "min_daily_total", "R011": "min_amount", "R012": "min_amount",
+}
 
 
 @dataclass
@@ -39,7 +44,7 @@ class StaticRules:
       "R011": kind == "qr_payment" and amount >= p["R011"]["min_amount"],
       "R012": withdrawal and amount >= p["R012"]["min_amount"],
     }
-    ids = [rule for rule, hit in fired.items() if hit]
+    ids = [rule for rule, hit in fired.items() if hit and p[rule][MAIN_THRESHOLD[rule]] > 0]
     if not ids:
       return [], None
     top = max((p[r]["severity"] for r in ids), key=SEVERITY_ORDER.get)
