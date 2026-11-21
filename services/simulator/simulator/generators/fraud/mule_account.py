@@ -1,39 +1,34 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from simulator.domain.models import SYSTEM_ACCOUNT, Batch, cop
-from simulator.generators.fraud.context import Context
+from simulator.domain.models import Batch
+from simulator.generators.fraud.context import Context, minutes
 
 
 def mule_account(ctx: Context, t: datetime) -> Batch:
   rng = ctx.rng
   batch = Batch()
-  mule = ctx.new_mule(t, batch)
-  device = mule.devices[0]
-  batch.events.append(ctx.event(mule.id, "login", device, t - timedelta(minutes=5)))
-
-  n_sources = int(rng.integers(8, 26))
-  offsets = sorted(float(x) for x in rng.uniform(0, 90, n_sources))
+  mule = ctx.mule()
+  victims: set[str] = set()
   total = 0.0
-  for offset in offsets:
-    victim = ctx.pick_victim(t)
-    amount = victim.avg_amount * rng.uniform(0.5, 2)
-    total += cop(amount)
+
+  for offset in sorted(float(x) for x in rng.uniform(0, 60, int(rng.integers(6, 15)))):
+    victim = ctx.victim(exclude=victims | {mule.id})
+    victims.add(victim.id)
+    amount = victim.balance * rng.uniform(0.3, 0.9)
+    total += amount
     batch.transactions.append(
       ctx.fraud_tx(
-        victim.id,
-        mule.id,
-        amount,
-        "transfer",
-        victim.devices[-1],
-        t + timedelta(minutes=offset),
-        "mule_account",
+        victim, t + minutes(offset), "social_engineering", amount, mule.id, "yuma_account"
       )
     )
 
-  cash_out = t + timedelta(minutes=offsets[-1] + float(rng.uniform(2, 20)))
+  cash_out = t + minutes(rng.uniform(65, 90))
+  withdrawal = rng.choice(["correspondent_withdrawal", "atm_withdrawal"])
+  channel = "correspondent" if withdrawal == "correspondent_withdrawal" else "atm"
   batch.transactions.append(
     ctx.fraud_tx(
-      mule.id, SYSTEM_ACCOUNT, total * 0.9, "withdrawal", device, cash_out, "mule_account"
+      mule, cash_out, "mule_account", total * 0.95, "COR044" if channel == "correspondent" else "CAJ044",
+      channel, operation=str(withdrawal), channel=channel, balance=total,
     )
   )
   return batch

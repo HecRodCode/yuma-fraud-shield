@@ -39,7 +39,7 @@ Training and serving use the same SQL function and the same Python feature code,
 
 ## Stack
 
-Kafka (KRaft) · Kafka UI · PostgreSQL · Python + FastAPI · XGBoost + scikit-learn · SHAP · Grafana · Docker Compose.
+Kafka (KRaft) · Kafka UI · PostgreSQL · Python + FastAPI · XGBoost + scikit-learn · SHAP · Streamlit · Grafana · Docker Compose.
 
 ## Code organization
 
@@ -52,8 +52,8 @@ services/api/app/            Scoring API (FastAPI)
   infra/                     PostgreSQL pool, Kafka publisher, repositories
   workers/                   persister (Kafka consumer) and replay (bulk scoring)
 services/baseline/           the legacy engine: 12 static rules in 15-minute batches
-services/sandbox/runner/     connector to the case sandbox: fetch, score, report decisions
-services/simulator/          attack and traffic simulator (being migrated to the case schema)
+services/simulator/          traffic and attack simulator, sandbox connector and HTTP control service
+services/portal/             Streamlit portal: compare engines, explore transactions, analyst queue, control
 ml/shield_ml/                feature definitions, case data loader, training, fairness audit
 infra/postgres/init/         schema, compute_features SQL function, comparison view
 infra/grafana/               provisioned datasource and dashboard
@@ -74,16 +74,29 @@ make sandbox             # starts the case sandbox API
 make sandbox-run ARGS="--reset"   # decides the test period through the sandbox and prints its indicators
 ```
 
+Then open the portal at http://localhost:8501.
+
 The API starts without a model and answers 503 on `/score` until `make train` has run; it picks up new models and config files automatically. The baseline needs a few minutes to evaluate the whole history after `make up`.
 
 | Service | URL | Notes |
 |---------|-----|-------|
 | Scoring API docs (Swagger) | http://localhost:8000/docs | `POST /score`, `GET /health`, `POST /admin/replay` |
+| Portal | http://localhost:8501 | compare engines, transaction explorer, analyst queue, control |
 | Dashboard | http://localhost:3000/d/yuma-shield | Grafana login from `.env` |
+| Simulator control | http://localhost:8001/docs | launches traffic, attacks and sandbox runs |
 | Kafka UI | http://localhost:8080 | topics `decisions`, `session-events` |
 | Case sandbox | http://localhost:8090/v1/metricas | official indicators |
 
 Host ports can be changed in `.env`. Grafana and the workers run with `network_mode: host` so they can reach a PostgreSQL that listens only on `127.0.0.1`.
+
+Traffic and attacks (also available from the portal's Control page):
+
+```bash
+make live ARGS="--tps 10 --duration 30"
+make attack TYPE=sim_swap ARGS="--speedup 600"   # account_takeover | sim_swap | social_engineering | qr_scam | mule_account
+```
+
+Simulated operations use a **virtual clock** that continues after the last transaction of the dataset (31 October), so the model sees realistic timing; `--speedup` is the number of virtual seconds per real second. Attacks are hand-made approximations of the five fraud types in the case, run on real customers of the dataset.
 
 Other commands: `make evaluate` (bulk-scores held-out transactions that have no decision), `make psql`, `make topics`, `make logs`, `make ps`, `make down`.
 

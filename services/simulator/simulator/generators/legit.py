@@ -1,133 +1,64 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 
-from simulator.domain.models import (
-  SYSTEM_ACCOUNT,
-  Account,
-  Batch,
-  SessionEvent,
-  Transaction,
-  cop,
-  new_device_id,
-  new_uuid,
-)
+from simulator.domain.models import Customer, SimTransaction, new_id, round_cop
 
-CHANNELS = ["transfer", "qr", "bill_payment", "topup", "withdrawal"]
-CHANNEL_PROBS = [0.35, 0.30, 0.10, 0.10, 0.15]
-PAYDAYS = (1, 15, 30)
-
-
-def generate_legit(
-  rng: np.random.Generator, accounts: list[Account], start: datetime, end: datetime
-) -> Batch:
-  batch = Batch()
-  by_id = {a.id: a for a in accounts}
-  regular = [a for a in accounts if a.devices and not a.is_merchant]
-  days = (end - start).days
-
-  for acc in accounts:
-    if not acc.devices:
-      continue
-    first_day = max(0, (acc.created_at - start).days + 1)
-    for d in range(first_day, days):
-      day = start + timedelta(days=d)
-      factor = 1.6 if day.day in PAYDAYS else 1.0
-      n_tx = int(rng.poisson(acc.daily_rate * factor))
-      if n_tx == 0 and rng.random() > 0.3:
-        continue
-
-      _maybe_account_changes(rng, acc, day, batch)
-      device = acc.devices[-1] if rng.random() < 0.85 else acc.devices[0]
-      times = sorted(_active_time(rng, acc, day) for _ in range(max(n_tx, 1)))
-      login_at = times[0] - timedelta(minutes=float(rng.uniform(1, 20)))
-      batch.events.append(
-        SessionEvent(new_uuid(rng), acc.id, "login", device, login_at)
-      )
-
-      for t in times[:n_tx]:
-        tx = build_legit_transaction(rng, acc, by_id, regular, device, t)
-        if tx is None:
-          continue
-        batch.transactions.append(tx)
-        if tx.channel == "transfer" and rng.random() < 0.4:
-          batch.events.append(
-            SessionEvent(
-              new_uuid(rng),
-              acc.id,
-              "otp_requested",
-              device,
-              t - timedelta(seconds=float(rng.uniform(30, 120))),
-            )
-          )
-
-  return batch
+OPERATIONS = [
+  "instant_transfer", "qr_payment", "bill_payment", "correspondent_withdrawal",
+  "atm_withdrawal", "mobile_topup", "virtual_card_purchase",
+]
+PROBABILITIES = [0.43, 0.21, 0.10, 0.09, 0.05, 0.08, 0.04]
+CHANNELS = {"correspondent_withdrawal": "correspondent", "atm_withdrawal": "atm"}
+FIXED_DESTINATIONS = {
+  "bill_payment": ("SRV", "utility", 60),
+  "mobile_topup": ("OPE", "carrier", 20),
+  "correspondent_withdrawal": ("COR", "correspondent", 200),
+  "atm_withdrawal": ("CAJ", "atm", 150),
+  "virtual_card_purchase": ("COM", "merchant", 500),
+}
 
 
-def _active_time(rng: np.random.Generator, acc: Account, day: datetime) -> datetime:
-  hour = (acc.active_start + int(rng.integers(0, acc.active_len))) % 24
-  return day.replace(
-    hour=hour, minute=int(rng.integers(0, 60)), second=int(rng.integers(0, 60))
-  )
+def pick(rng: np.random.Generator, options: list):
+  return options[int(rng.integers(0, len(options)))]
 
 
-def _maybe_account_changes(
-  rng: np.random.Generator, acc: Account, day: datetime, batch: Batch
-) -> None:
-  at = _active_time(rng, acc, day)
-  if rng.random() < 0.002:
-    device = new_device_id(rng)
-    acc.devices.append(device)
-    batch.events.append(SessionEvent(new_uuid(rng), acc.id, "device_change", device, at))
-  if rng.random() < 0.0015:
-    batch.events.append(
-      SessionEvent(new_uuid(rng), acc.id, "password_change", acc.devices[-1], at)
-    )
-  if rng.random() < 0.0003:
-    batch.events.append(
-      SessionEvent(new_uuid(rng), acc.id, "phone_change", acc.devices[-1], at)
-    )
+def build_legit(rng: np.random.Generator, customer: Customer, at: datetime) -> SimTransaction:
+  operation = str(rng.choice(OPERATIONS, p=PROBABILITIES))
+  new_destination = False
 
-
-def build_legit_transaction(
-  rng: np.random.Generator,
-  acc: Account,
-  by_id: dict[str, Account],
-  regular: list[Account],
-  device: str,
-  t: datetime,
-) -> Transaction | None:
-  channel = str(rng.choice(CHANNELS, p=CHANNEL_PROBS))
-
-  if channel == "transfer":
-    pool = acc.contacts
-    if rng.random() < 0.1:
-      target = regular[int(rng.integers(0, len(regular)))].id
-    elif pool:
-      target = pool[int(rng.integers(0, len(pool)))]
+  if operation == "instant_transfer":
+    if customer.contacts and rng.random() < 0.85:
+      destination, dtype = pick(rng, customer.contacts)
     else:
-      return None
-  elif channel in ("qr", "bill_payment"):
-    if not acc.favorite_merchants:
-      return None
-    pool = acc.favorite_merchants
-    target = pool[int(rng.integers(0, len(pool)))]
+      destination, dtype, new_destination = f"EXT{int(rng.integers(10000, 99999))}", "other_bank", True
+  elif operation == "qr_payment":
+    if customer.merchants and rng.random() < 0.85:
+      destination, dtype = pick(rng, customer.merchants)
+    else:
+      destination, dtype, new_destination = f"COM{int(rng.integers(10000, 99999))}", "merchant", True
   else:
-    target = SYSTEM_ACCOUNT
+    prefix, dtype, size = FIXED_DESTINATIONS[operation]
+    destination = f"{prefix}{int(rng.integers(1, size)):03d}"
 
-  if target == acc.id or by_id[target].created_at > t:
-    return None
-
-  amount = rng.lognormal(np.log(acc.avg_amount), 0.6)
-  if rng.random() < 0.015:
-    amount *= rng.uniform(4, 10)
-
-  return Transaction(
-    id=new_uuid(rng),
-    source_account=acc.id,
-    target_account=target,
-    amount=cop(amount),
-    channel=channel,
-    device=device,
-    created_at=t,
+  balance = customer.balance * float(rng.uniform(0.8, 1.2))
+  amount = round_cop(min(rng.lognormal(np.log(max(customer.avg_amount, 5000)), 0.5), balance * 0.9))
+  return SimTransaction(
+    id=new_id(rng, "TS"),
+    customer_id=customer.id,
+    operation_type=operation,
+    channel=CHANNELS.get(operation, "app"),
+    amount=amount,
+    balance_before=round_cop(max(balance, amount * 1.05)),
+    destination_id=destination,
+    destination_type=dtype,
+    new_destination=new_destination,
+    device_id=customer.usual_device,
+    new_device=False,
+    password_change_24h=False,
+    sim_change_48h=False,
+    ip_department=customer.usual_ip,
+    ip_department_mismatch=False,
+    account_age_days=customer.age_days(at),
+    occurred_at=at,
   )

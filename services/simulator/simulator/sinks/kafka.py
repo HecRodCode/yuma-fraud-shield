@@ -1,5 +1,4 @@
 import json
-from datetime import datetime
 
 from confluent_kafka import Producer
 
@@ -11,17 +10,20 @@ class EventPublisher:
   def __init__(self) -> None:
     self._producer = Producer({"bootstrap.servers": KAFKA_BOOTSTRAP})
 
-  def publish(self, event: SessionEvent, occurred_at: datetime) -> None:
+  def publish(self, event: SessionEvent) -> None:
     self._producer.produce(
       SESSION_TOPIC,
-      key=event.account_id,
+      key=event.customer_id,
       value=json.dumps(
         {
-          "id": str(event.id),
-          "account_id": event.account_id,
+          "id": event.id,
+          "customer_id": event.customer_id,
           "type": event.type,
-          "device": event.device,
-          "occurred_at": occurred_at.isoformat(),
+          "device_id": event.device_id,
+          "os": event.os,
+          "ip_department": event.ip_department,
+          "result": event.result,
+          "occurred_at": event.occurred_at.isoformat(),
         }
       ),
     )

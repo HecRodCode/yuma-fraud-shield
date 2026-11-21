@@ -113,17 +113,20 @@ services:
       - ./docs/Caso_de_estudio_Yuma_Pay/04_Sandbox_API:/sandbox:ro
       - ./docs/Caso_de_estudio_Yuma_Pay/03_Datos:/data:ro
 
-  runner:
-    build: ./services/sandbox
-    image: yuma-shield-runner
+  portal:
+    build: ./services/portal
+    image: yuma-shield-portal
     network_mode: host
-    profiles: ["tools"]
     environment:
+      <<: *app-env
+      PORTAL_PORT: ${PORTAL_PORT:-8501}
+      ARTIFACTS_DIR: /artifacts
+      CONTROL_URL: http://localhost:${SIM_PORT:-8001}
       API_URL: http://localhost:${API_PORT:-8000}
       SANDBOX_URL: http://localhost:${SANDBOX_PORT:-8090}
-      OUT_DIR: /out
     volumes:
-      - ./ml/artifacts:/out
+      - ./ml/artifacts:/artifacts:ro
+    restart: unless-stopped
 
   trainer:
     <<: *app
@@ -169,10 +172,14 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       KAFKA_BOOTSTRAP: localhost:29092
       API_URL: http://localhost:${API_PORT:-8000}
+      SANDBOX_URL: http://localhost:${SANDBOX_PORT:-8090}
+      OUT_DIR: /out
+    volumes:
+      - ./ml/artifacts:/out
 
   control:
     <<: *simulator
-    profiles: ["simulator"]
+    profiles: []
     command: ["serve", "--port", "${SIM_PORT:-8001}"]
     depends_on:
       kafka-init: { condition: service_completed_successfully }

@@ -1,27 +1,37 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from simulator.domain.models import Batch, new_device_id
-from simulator.generators.fraud.context import Context
+from simulator.domain.models import Batch, new_device
+from simulator.generators.fraud.context import Context, minutes
 
 
 def sim_swap(ctx: Context, t: datetime) -> Batch:
   rng = ctx.rng
   batch = Batch()
-  if rng.random() < 0.6:
-    t = t.replace(hour=int(rng.integers(0, 6)))
-  victim = ctx.pick_victim(t)
-  mule = ctx.pick_mule(t, batch)
-  device = new_device_id(rng) if rng.random() < 0.7 else victim.devices[-1]
+  victim = ctx.victim()
+  device = new_device(rng)
+  department = victim.usual_ip
 
-  batch.events.append(ctx.event(victim.id, "phone_change", victim.devices[-1], t))
-  otp_at = t + timedelta(minutes=float(rng.uniform(1, 10)))
-  batch.events.append(ctx.event(victim.id, "otp_requested", device, otp_at))
+  batch.events.append(ctx.event(victim, "sim_change", victim.usual_device, t))
+  registration = t + minutes(4)
+  batch.events.append(ctx.event(victim, "device_registration", device, registration))
+  batch.events.append(ctx.event(victim, "login", device, registration + minutes(1)))
 
-  at = otp_at
-  for _ in range(int(rng.integers(1, 3))):
-    at += timedelta(minutes=float(rng.uniform(0.5, 5)))
-    amount = victim.avg_amount * rng.uniform(2, 8)
+  amount = victim.balance * rng.uniform(0.6, 0.95)
+  destination, dtype = ctx.external_destination()
+  at = registration + minutes(3)
+  batch.transactions.append(
+    ctx.fraud_tx(
+      victim, at, "sim_swap", amount, destination, dtype, device=device, new_device=True,
+      sim_change=True, department=department,
+    )
+  )
+  remaining = victim.balance - amount
+  if remaining > 100_000 and rng.random() < 0.5:
     batch.transactions.append(
-      ctx.fraud_tx(victim.id, mule.id, amount, "transfer", device, at, "sim_swap")
+      ctx.fraud_tx(
+        victim, at + minutes(rng.uniform(10, 25)), "sim_swap", remaining * 0.95, "CAJ031", "atm",
+        operation="atm_withdrawal", channel="atm", balance=remaining, device=device,
+        new_device=True, sim_change=True, department=department,
+      )
     )
   return batch
